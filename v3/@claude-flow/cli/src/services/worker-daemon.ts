@@ -11,7 +11,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, unlinkSync, renameSync } from 'fs';
 import { cpus } from 'os';
 import { join } from 'path';
 import {
@@ -1087,7 +1087,9 @@ export class WorkerDaemon extends EventEmitter {
     };
 
     try {
-      writeFileSync(this.config.stateFile, JSON.stringify(state, null, 2));
+      const tmpFile = this.config.stateFile + '.tmp';
+      writeFileSync(tmpFile, JSON.stringify(state, null, 2));
+      renameSync(tmpFile, this.config.stateFile);
     } catch (error) {
       this.log('error', `Failed to save state: ${error}`);
     }

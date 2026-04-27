@@ -291,6 +291,9 @@ export const neuralTools: MCPTool[] = [
         totalPatterns: Object.keys(store.patterns).length,
         epochs,
         trainedAt: model.trainedAt,
+        ...(embeddingServiceName === 'hash-fallback' || embeddingServiceName === 'none' ? {
+          platformNote: 'ONNX embeddings not available — using hash-based fallback. Install @claude-flow/embeddings and run "embeddings init --download" for semantic search.',
+        } : {}),
       };
     },
   },

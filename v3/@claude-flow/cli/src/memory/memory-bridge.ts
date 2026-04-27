@@ -83,13 +83,15 @@ async function getRegistry(dbPath?: string): Promise<any | null> {
             dbPath: dbPath || getDbPath(),
             embeddingModel: 'Xenova/all-MiniLM-L6-v2',
             dimension: 384,
+            vectorBackend: 'auto',
             controllers: {
               reasoningBank: true,
               learningBridge: false,
               tieredCache: true,
               hierarchicalMemory: true,
               memoryConsolidation: true,
-              memoryGraph: true, // issue #1214: enable MemoryGraph for graph-aware ranking
+              memoryGraph: true,
+              vectorBackend: true,
             },
           });
         } finally {

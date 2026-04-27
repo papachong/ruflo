@@ -26,7 +26,11 @@ export interface MCPToolResult {
  * where process.cwd() may resolve to '/') over the real process.cwd().
  */
 export function getProjectCwd(): string {
-  return process.env.CLAUDE_FLOW_CWD || process.cwd();
+  const envCwd = process.env.CLAUDE_FLOW_CWD;
+  if (envCwd && envCwd !== '/' && envCwd !== process.env.HOME) {
+    return envCwd;
+  }
+  return process.cwd();
 }
 
 export interface MCPTool {

@@ -83,7 +83,7 @@ const CAPABILITY_CATALOG: Record<string, CapabilityArea> = {
   'memory-knowledge': {
     name: 'Memory & Knowledge',
     description: 'Persistent memory with HNSW vector search, AgentDB storage, and embeddings.',
-    tools: ['memory_store', 'memory_retrieve', 'memory_search', 'memory_list', 'memory_delete', 'memory_init', 'memory_export', 'memory_import', 'memory_stats', 'memory_compact', 'memory_namespace'],
+    tools: ['memory_store', 'memory_retrieve', 'memory_search', 'memory_list', 'memory_delete', 'memory_init', 'memory_export', 'memory_import_claude', 'memory_stats', 'memory_compact', 'memory_namespace'],
     commands: ['memory store', 'memory retrieve', 'memory search', 'memory list', 'memory delete', 'memory init'],
     agents: ['swarm-memory-manager', 'v3-memory-specialist'],
     skills: ['v3-memory-unification', 'agentdb-advanced', 'agentdb-vector-search', 'agentdb-memory-patterns', 'agentdb-learning'],

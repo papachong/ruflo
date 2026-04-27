@@ -418,13 +418,13 @@ const initAction = async (ctx: CommandContext): Promise<CommandResult> => {
     }
 
     if (!startDaemon && !startAll) {
-      // Next steps (only if not auto-starting)
+      const bin = (process.argv[1] || '').includes('ruflo') ? 'ruflo' : 'claude-flow';
       output.writeln(output.bold('Next steps:'));
       output.printList([
-        `Run ${output.highlight('claude-flow daemon start')} to start background workers`,
-        `Run ${output.highlight('claude-flow memory init')} to initialize memory database`,
-        `Run ${output.highlight('claude-flow swarm init')} to initialize a swarm`,
-        `Or use ${output.highlight('claude-flow init --start-all')} to do all of the above`,
+        `Run ${output.highlight(`${bin} daemon start`)} to start background workers`,
+        `Run ${output.highlight(`${bin} memory init`)} to initialize memory database`,
+        `Run ${output.highlight(`${bin} swarm init`)} to initialize a swarm`,
+        `Or use ${output.highlight(`${bin} init --start-all`)} to do all of the above`,
         options.components.settings ? `Review ${output.highlight('.claude/settings.json')} for hook configurations` : '',
       ].filter(Boolean));
     }

@@ -458,9 +458,18 @@ export class RvfBackend implements IMemoryBackend {
     }
   }
 
+  private persistQueue: Promise<void> = Promise.resolve();
+
   private async persistToDisk(): Promise<void> {
     if (this.config.databasePath === ':memory:') return;
-    if (this.persisting) return; // Prevent concurrent persist calls
+    // Queue writes so concurrent callers wait instead of silently dropping
+    this.persistQueue = this.persistQueue.then(() => this.doPersist()).catch(() => {});
+    return this.persistQueue;
+  }
+
+  private async doPersist(): Promise<void> {
+    if (!this.dirty) return;
+    if (this.persisting) return;
     this.persisting = true;
 
     try {

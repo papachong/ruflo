@@ -4049,13 +4049,13 @@ const statuslineCommand: Command = {
 
       try {
         const psCmd = isWindows
-          ? 'tasklist /FI "IMAGENAME eq node.exe" 2>NUL | findstr /I /C:"node" >NUL && echo 1 || echo 0'
+          ? 'tasklist /FI "IMAGENAME eq node.exe" /NH 2>NUL | find /c /v "" 2>NUL || echo 0'
           : 'ps aux 2>/dev/null | grep -c agentic-flow || echo "0"';
-        const ps = execSync(psCmd, { encoding: 'utf-8' });
+        const ps = execSync(psCmd, { encoding: 'utf-8', timeout: 3000 });
         activeAgents = Math.max(0, parseInt(ps.trim()) - 1);
         coordinationActive = activeAgents > 0;
       } catch {
-        // Ignore
+        // ps/tasklist unavailable or timed out — report zero
       }
 
       return { activeAgents, maxAgents, coordinationActive };
