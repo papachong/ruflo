@@ -1,0 +1,89 @@
+{
+  "strategy": "smart",
+  "embedder": "Xenova/all-MiniLM-L6-v2",
+  "label": "minilm-baseline",
+  "timestamp": "2026-05-01T18:00:33.136Z",
+  "total": 500,
+  "k": 10,
+  "overall": {
+    "session_recall_at_k": 1,
+    "session_top1_recall": 1,
+    "content_at_1": 0.194,
+    "content_at_3": 0.318,
+    "content_at_k": 0.434,
+    "mrr_content": 0.2702
+  },
+  "by_category": [
+    {
+      "type": "knowledge-update",
+      "total": 78,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.3205,
+      "content_at_3": 0.5897,
+      "content_at_k": 0.7051,
+      "mrr_content": 0.4569
+    },
+    {
+      "type": "multi-session",
+      "total": 133,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.0526,
+      "content_at_3": 0.1805,
+      "content_at_k": 0.3233,
+      "mrr_content": 0.1417
+    },
+    {
+      "type": "single-session-assistant",
+      "total": 56,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.2857,
+      "content_at_3": 0.3929,
+      "content_at_k": 0.5357,
+      "mrr_content": 0.3574
+    },
+    {
+      "type": "single-session-preference",
+      "total": 30,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0,
+      "content_at_3": 0,
+      "content_at_k": 0,
+      "mrr_content": 0
+    },
+    {
+      "type": "single-session-user",
+      "total": 70,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.5286,
+      "content_at_3": 0.6286,
+      "content_at_k": 0.8,
+      "mrr_content": 0.5972
+    },
+    {
+      "type": "temporal-reasoning",
+      "total": 133,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.0902,
+      "content_at_3": 0.1729,
+      "content_at_k": 0.2481,
+      "mrr_content": 0.1413
+    }
+  ],
+  "latency": {
+    "retrieval_p50_ms": 15.5198,
+    "retrieval_p95_ms": 29.0598,
+    "retrieval_p99_ms": 50.2172
+  },
+  "config": {
+    "embed_dim": 384,
+    "embedder": "Xenova/all-MiniLM-L6-v2",
+    "hnsw_m": 16,
+    "hnsw_ef_construction": 200
+  }
+}

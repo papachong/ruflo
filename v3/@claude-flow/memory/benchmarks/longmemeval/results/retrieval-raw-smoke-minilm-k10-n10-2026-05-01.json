@@ -1,0 +1,39 @@
+{
+  "strategy": "raw",
+  "embedder": "Xenova/all-MiniLM-L6-v2",
+  "label": "smoke-minilm",
+  "timestamp": "2026-05-01T17:51:28.439Z",
+  "total": 10,
+  "k": 10,
+  "overall": {
+    "session_recall_at_k": 1,
+    "session_top1_recall": 1,
+    "content_at_1": 0.3,
+    "content_at_3": 0.3,
+    "content_at_k": 0.3,
+    "mrr_content": 0.3
+  },
+  "by_category": [
+    {
+      "type": "temporal-reasoning",
+      "total": 10,
+      "session_recall_at_k": 1,
+      "session_top1_recall": 1,
+      "content_at_1": 0.3,
+      "content_at_3": 0.3,
+      "content_at_k": 0.3,
+      "mrr_content": 0.3
+    }
+  ],
+  "latency": {
+    "retrieval_p50_ms": 0.0279,
+    "retrieval_p95_ms": 0.1521,
+    "retrieval_p99_ms": 0.1521
+  },
+  "config": {
+    "embed_dim": 384,
+    "embedder": "Xenova/all-MiniLM-L6-v2",
+    "hnsw_m": 16,
+    "hnsw_ef_construction": 200
+  }
+}
