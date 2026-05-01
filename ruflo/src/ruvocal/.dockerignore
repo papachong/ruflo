@@ -10,4 +10,8 @@ node_modules/
 !.env
 .env.local
 db
-models/**
+# Anchored to repo root: ignore the top-level models/ symlink/dir only.
+# WITHOUT the leading slash this would also drop src/routes/api/v2/models/,
+# src/routes/models/, and any other models/ subdir — which silently broke
+# the production build (route 404s on /api/v2/models, /favicon, /).
+/models/**
