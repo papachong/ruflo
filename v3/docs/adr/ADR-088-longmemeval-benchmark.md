@@ -234,11 +234,12 @@ The benchmark surfaces clear, ordered targets. Each item lists the metric it sho
      | Hash raw (baseline) | 22.2% | 35.8% | 43.6% | 0.2967 |
      | Hash smart | 24.6% | 34.6% | 43.2% | 0.3058 |
      | BM25 only (hash) | 23.4% | 36.0% | 43.8% | 0.3056 |
-     | **Hybrid (hash + BM25)** | **24.2%** | **38.0%** | **43.8%** | **0.3129** |
-     | Hybrid (MiniLM + BM25) | 21.8% | 35.6% | 44.6% | 0.2975 |
-     | Hybrid (MiniLM + BM25, RRF k=10) | 21.4% | 35.2% | 44.4% | 0.2936 |
-   - **Read:** Hybrid-hash is the best raw run by Content@3 (+2.2 pp over raw, +3.4 pp over smart) and MRR (+0.016 over raw). Gains are smaller than the +3–8 pp originally projected. **Hybrid does not rescue MiniLM** — dense-MiniLM hybrid still loses to hash hybrid on every Content@k metric. The semantic encoder is genuinely a worse fit for this lexical-substring metric, with or without BM25 fusion.
-   - Next: combine **hybrid + smart** (BM25 + dense via RRF + the smart pipeline's recency / MMR / session-RR layer) — not yet run. Expected to stack: smart's pipeline gain (~+2 pp C@1) on top of hybrid's gain (~+2 pp C@1).
+     | Hybrid (hash + BM25) raw | 24.2% | 38.0% | 43.8% | 0.3129 |
+     | Hybrid (MiniLM + BM25) raw | 21.8% | 35.6% | 44.6% | 0.2975 |
+     | Hybrid (MiniLM + BM25, RRF k=10) raw | 21.4% | 35.2% | 44.4% | 0.2936 |
+     | **Hybrid (hash + BM25) smart** | **26.8%** | **37.0%** | 44.0% | **0.3269** |
+   - **Read:** Smart + hybrid stacks as predicted — combining BM25+RRF with the smart pipeline (recency / MMR / session-RR) lifts C@1 from 22.2% (hash raw baseline) → 26.8% (+4.6 pp) and MRR 0.2967 → 0.3269 (+0.030). **This is the new SOTA on the bench.** Gains are smaller than the +3–8 pp originally projected per layer, but additive across BM25 (+2.0 pp) and smart (+2.2 pp).
+   - **Hybrid does not rescue MiniLM** — dense-MiniLM hybrid still loses to hash hybrid on every Content@k metric. The semantic encoder is genuinely a worse fit for this lexical-substring metric, with or without BM25 fusion.
 
 2. **Smarter chunking with sentence boundaries + question-style overlap.**
    - Today the harness chunks at session boundaries. Many `single-session-preference` answers live mid-message and get diluted (currently 0% across both encoders and both pipelines — a structural failure, not a ranking failure).
