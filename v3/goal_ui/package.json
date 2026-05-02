@@ -25,6 +25,7 @@
     "check:rvf-format": "tsx scripts/check-rvf-format.mjs",
     "check:fn-security": "bash scripts/check-fn-security.sh",
     "check:swarm-quality": "tsx scripts/check-swarm-quality.mjs",
+    "check:mcp-manifest": "tsx scripts/check-mcp-manifest.mjs",
     "check:audit": "npm audit --omit=dev --audit-level=critical",
     "check:audit:high": "npm audit --omit=dev --audit-level=high || echo '(non-blocking; see audit-known-issues.md)'",
     "postbuild": "bash scripts/check-secrets.sh"

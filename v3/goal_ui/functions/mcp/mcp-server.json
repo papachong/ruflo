@@ -1,0 +1,191 @@
+{
+  "name": "goal_ui-research",
+  "version": "0.1.0",
+  "description": "RuFlo Research — Goal-Oriented Action Planning research workflows exposed as MCP tools. Lets external claude-flow agents drive end-to-end research from the CLI: goal generation, per-step research, action-item synthesis, config optimization, and a full-pipeline aggregate. Per ADR-098 (R-5).",
+  "transport": "stdio",
+  "command": "tsx",
+  "args": ["functions/mcp/server.ts"],
+  "tools": [
+    {
+      "name": "generate_research_goal",
+      "description": "Generate 3 specific, novel research goals for a given category. Wraps functions/generate-research-goal/handler.ts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Category slug (finance, business, marketing, medical, education, coding, technical, ai-ml). Validated by IdentifierSchema.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "customContext": {
+            "type": "string",
+            "description": "Optional free-text context to refine the generated goals.",
+            "maxLength": 10000
+          }
+        },
+        "required": ["category"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "research_step",
+      "description": "Execute one research step (single-call OR 4-agent swarm per RUFLO_USE_SWARM env). Returns a flat array of {title, content, source?, confidence?, timestamp?} findings. Wraps functions/research-step/handler.ts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "description": "The overall research goal. Validated by UserPromptInputSchema (control-byte rejection, 10K cap).",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "stepTitle": {
+            "type": "string",
+            "description": "Title of the current research step (e.g., 'Discovery', 'Synthesis').",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "stepDescription": {
+            "type": "string",
+            "description": "Description of what the step should accomplish.",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "stepType": {
+            "type": "string",
+            "description": "Step type identifier (goal-analysis, web-search, document-analysis, etc.)."
+          },
+          "aiModel": {
+            "type": "string",
+            "description": "Optional model override. Default: claude-haiku-4-5-20251001."
+          },
+          "config": {
+            "type": "object",
+            "description": "Optional research config snapshot."
+          },
+          "previousStepsData": {
+            "type": "array",
+            "description": "Findings from prior steps for context.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stepTitle": { "type": "string" },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "content": { "type": "string" },
+                      "source": { "type": "string" },
+                      "confidence": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": ["goal", "stepTitle", "stepDescription", "stepType"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "generate_action_items",
+      "description": "Synthesize prioritized, structured action items + executive summary from the goal + accumulated research findings. Returns the rich shape ResearchReportModal renders. Wraps functions/generate-action-items/handler.ts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "description": "The original research goal.",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "researchContext": {
+            "type": "array",
+            "description": "Per-step findings used to ground the action items.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stepTitle": { "type": "string" },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "content": { "type": "string" },
+                      "source": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "totalSteps": {
+            "type": "number",
+            "description": "Total number of research steps executed."
+          },
+          "totalDataPoints": {
+            "type": "number",
+            "description": "Total findings count across all steps."
+          }
+        },
+        "required": ["goal", "researchContext", "totalSteps", "totalDataPoints"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "optimize_research_config",
+      "description": "Generate an optimized GOAP research config for the given preset + optional current goal. Wraps functions/optimize-research-config/handler.ts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "description": "Preset slug (academic-deep, market-trends, technical-feasibility, etc.). Validated by IdentifierSchema.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "currentGoal": {
+            "type": "string",
+            "description": "Optional current goal text — refines the config to fit the goal.",
+            "maxLength": 10000
+          }
+        },
+        "required": ["preset"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run_full_research",
+      "description": "End-to-end aggregate: takes a goal + preset and runs the full pipeline (config → 7-step research → action items + summary). Lets an external claude-flow agent drive RuFlo Research as a single subroutine. Per ADR-098.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "description": "Plain-English research goal.",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "preset": {
+            "type": "string",
+            "description": "Optional preset slug. Default: academic-deep.",
+            "maxLength": 64
+          },
+          "stepCount": {
+            "type": "integer",
+            "description": "Number of research steps to execute. Default: 7.",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": ["goal"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
