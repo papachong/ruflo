@@ -1,6 +1,6 @@
 {
   "name": "@claude-flow/cli-core",
-  "version": "3.7.0-alpha.4",
+  "version": "3.7.0-alpha.5",
   "description": "Lightweight core CLI surface for Claude Flow — memory + hooks commands only. Designed to load fast on cold npx cache (<5s) so plugin skills don't race the 30s MCP-startup timeout. The full @claude-flow/cli metapackage lazy-loads everything else on top of this core.",
   "type": "module",
   "main": "dist/src/index.js",
@@ -16,6 +16,8 @@
     "./memory/json-backend": "./dist/src/memory/json-backend.js",
     "./commands/memory": "./dist/src/commands/memory.js",
     "./mcp-tools": "./dist/src/mcp-tools/index.js",
+    "./mcp-tools/types": "./dist/src/mcp-tools/types.js",
+    "./mcp-tools/validate-input": "./dist/src/mcp-tools/validate-input.js",
     "./mcp-tools/memory-defs": "./dist/src/mcp-tools/memory-defs.js",
     "./mcp-tools/hooks-defs": "./dist/src/mcp-tools/hooks-defs.js"
   },

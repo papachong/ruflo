@@ -1,6 +1,8 @@
 # Migration Guide — switching plugin scripts to `@claude-flow/cli-core`
 
-> **Status:** alpha (3.7.0-alpha.2). This is an opt-in migration for plugin authors who want the cold-cache speedup today and accept the storage-format trade-off documented below.
+> **Status:** alpha (3.7.0-alpha.5). This is an opt-in migration for plugin authors who want the cold-cache speedup today and accept the storage-format trade-off documented below.
+
+> **alpha.5 adds two subpath exports** (`./mcp-tools/types`, `./mcp-tools/validate-input`) so `@claude-flow/cli` can re-export those foundation modules from cli-core in a follow-up PR (eliminating ~1,229 LOC of byte-identical duplication). No behavior change for existing plugin scripts; this is groundwork for the cli-side metapackage refactor.
 
 ## TL;DR
 
@@ -95,6 +97,31 @@ cli-core is alpha — please file feedback at https://github.com/ruvnet/ruflo/is
 - Cold-cache wall-time on your network (run `rm -rf ~/.npm/_npx; time npx -y @claude-flow/cli-core@alpha --version`)
 - Substring-search false negatives (cases where you expected semantic match)
 - Operations you want migrated but are blocked on (will help prioritize alpha.3)
+
+## Planned: `@claude-flow/cli` foundation re-export (post-alpha.5)
+
+The following 4 foundation modules are byte-identical between `@claude-flow/cli` and `@claude-flow/cli-core` (verified via `diff -q`):
+
+| File | Lines | cli-core export |
+|---|---:|---|
+| `cli/src/types.ts` | 287 | `@claude-flow/cli-core/types` |
+| `cli/src/output.ts` | 640 | `@claude-flow/cli-core/output` |
+| `cli/src/mcp-tools/types.ts` | 46 | `@claude-flow/cli-core/mcp-tools/types` |
+| `cli/src/mcp-tools/validate-input.ts` | 256 | `@claude-flow/cli-core/mcp-tools/validate-input` |
+| **Total** | **1,229** | |
+
+The follow-up PR will:
+
+1. Add `@claude-flow/cli-core: ^3.7.0-alpha.5` as a runtime dep in `cli/package.json`.
+2. Replace each of the 4 files above with a single-line re-export shim:
+   ```ts
+   // cli/src/types.ts (after)
+   export * from '@claude-flow/cli-core/types';
+   ```
+3. The 60+ `import './types.js'` call sites inside cli stay unchanged — they hit the shim, which re-exports cli-core's authoritative defs. Zero runtime risk because the source files are already identical.
+4. Future drift is impossible: if cli-core's types change, cli picks them up automatically via the dep.
+
+This is intentionally **not** part of alpha.5 itself. The cli@3.6.30 tarball is 2.2 MB / 1146 files; touching its foundation files is a real PR with proper review, smoke tests, and a release. alpha.5 just lays the wiring (subpath exports) so the PR is mechanical when we cut it.
 
 ## Cross-references
 
