@@ -82,8 +82,12 @@ export default function Aperture() {
   }, []);
 
   // Listen for inbound envelopes posted on `window` by the swarm-bus relay.
+  // Reject anything that isn't from this origin or this window — guards
+  // against iframes / popups / extensions trying to drive `handle_inbound`.
   useEffect(() => {
     const handler = (ev: MessageEvent) => {
+      if (ev.origin !== window.location.origin) return;
+      if (ev.source !== window) return;
       const data = ev.data;
       if (!looksLikeEnvelope(data)) return;
       if ((data as Envelope).from === "aperture:cmdbar") return;
@@ -116,7 +120,9 @@ export default function Aperture() {
         } else {
           if (Array.isArray(result.ok.views)) pushViews(result.ok.views);
           if (result.ok.outbound) {
-            window.postMessage(result.ok.outbound, "*");
+            // Pin the target origin so embedders / popups can't read
+            // outbound envelopes (which include ORDER + EXPORT payloads).
+            window.postMessage(result.ok.outbound, window.location.origin);
           }
         }
       } catch (e) {

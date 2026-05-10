@@ -98,8 +98,8 @@ pub fn build_route(
         Verb::Desc | Verb::Watch | Verb::Unwatch => {
             let symbol = cmd.symbol.clone()?;
             let to = match cmd.verb {
-                Verb::Desc => "aperture:agent.quote",
-                Verb::Watch | Verb::Unwatch => "aperture:agent.watch",
+                Verb::Desc => "aperture:pane.quote",
+                Verb::Watch | Verb::Unwatch => "aperture:pane.watchlist",
                 _ => unreachable!(),
             };
             Some((
@@ -116,11 +116,11 @@ pub fn build_route(
             let symbol = cmd.symbol.clone()?;
             Some((
                 MessageType::Direct,
-                "aperture:agent.data".into(),
+                "aperture:pane.chart".into(),
                 json!({
-                    "verb": "OHLCV",
+                    "verb": "CHART",
                     "symbol": symbol,
-                    "period": first_arg(&cmd.args).unwrap_or_else(|| "6M".into()),
+                    "range": first_arg(&cmd.args).unwrap_or_else(|| "1M".into()),
                 }),
             ))
         }
@@ -147,7 +147,7 @@ pub fn build_route(
                 .or_else(|| last_symbol.map(|s| s.to_string()));
             Some((
                 MessageType::Direct,
-                "aperture:agent.oracle".into(),
+                "aperture:pane.oracle".into(),
                 json!({"verb": "ASK", "prompt": prompt, "symbol": symbol}),
             ))
         }

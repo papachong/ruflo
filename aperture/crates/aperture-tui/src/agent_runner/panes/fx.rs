@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct FxPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl FxPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.fx".into(),
+            id: "aperture:pane.fx",
             source: StubDataSource,
         }
     }

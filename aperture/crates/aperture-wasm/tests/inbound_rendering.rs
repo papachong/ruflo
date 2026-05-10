@@ -100,28 +100,41 @@ fn inbox_result_renders_messages_in_inbox_pane() {
 
 #[test]
 fn risk_result_renders_rows_in_risk_pane() {
+    // Uses the canonical `vol_annualised` field that `StubDataSource::risk_metrics`
+    // emits; the renderer also accepts the legacy `volatility` alias.
     let env = inbound(
         "RISK.RESULT",
-        json!({"data": {"rows": [{"symbol": "AAPL", "beta": 1.2, "volatility": 0.3}]}}),
+        json!({"data": {"rows": [{"symbol": "AAPL", "beta": 1.2, "vol_annualised": 0.3}]}}),
         "aperture:pane.risk",
     );
     let lines = render_inbound(&env);
     assert!(lines.iter().any(|l| l.pane == Pane::Risk));
     assert!(lines
         .iter()
-        .any(|l| l.text.contains("AAPL") && l.text.contains("1.20")));
+        .any(|l| l.text.contains("AAPL") && l.text.contains("1.20") && l.text.contains("0.30")));
 }
 
 #[test]
 fn options_result_renders_chain_in_options_pane() {
+    // Stub options chain rows have `call_iv` / `put_iv` / `call_oi` / `put_oi`,
+    // not a flat `iv`/`oi`/`type`. Pin the renderer to that shape.
     let env = inbound(
         "OPTIONS.RESULT",
-        json!({"symbol": "AAPL", "chain": {"rows": [{"type": "C", "strike": 200.0, "iv": 0.35, "oi": 1234}]}}),
+        json!({"symbol": "AAPL", "chain": {"rows": [{
+            "strike": 200.0,
+            "call_iv": 0.35, "put_iv": 0.40,
+            "call_oi": 1234, "put_oi": 1100,
+        }]}}),
         "aperture:pane.options",
     );
     let lines = render_inbound(&env);
     assert!(lines.iter().any(|l| l.pane == Pane::Options));
-    assert!(lines.iter().any(|l| l.text.contains("K=200.00")));
+    let row = lines
+        .iter()
+        .find(|l| l.text.contains("K=200.00"))
+        .expect("strike row");
+    assert!(row.text.contains("C iv=0.35/oi=1234"));
+    assert!(row.text.contains("P iv=0.40/oi=1100"));
 }
 
 #[test]
@@ -155,9 +168,18 @@ fn crypto_result_renders_in_crypto_pane() {
 
 #[test]
 fn corpact_result_renders_events_in_corpact_pane() {
+    // Stub event shapes:
+    //   dividend: {type, ex_date, amount, currency}
+    //   split:    {type, ex_date, ratio}
+    //   earnings: {type, date}
+    // The renderer prefers `ex_date` then `date`, and surfaces the
+    // type-specific scalar (amount / ratio / subject).
     let env = inbound(
         "CORPACT.RESULT",
-        json!({"symbol": "AAPL", "data": {"events": [{"type": "split", "date": "2026-01-15", "detail": "4-for-1"}]}}),
+        json!({"symbol": "AAPL", "data": {"events": [
+            {"type": "split",    "ex_date": "2026-01-15", "ratio": "4-for-1"},
+            {"type": "earnings", "date":    "2026-07-25"},
+        ]}}),
         "aperture:pane.corpact",
     );
     let lines = render_inbound(&env);
@@ -165,6 +187,9 @@ fn corpact_result_renders_events_in_corpact_pane() {
     assert!(lines
         .iter()
         .any(|l| l.text.contains("split") && l.text.contains("4-for-1")));
+    assert!(lines
+        .iter()
+        .any(|l| l.text.contains("earnings") && l.text.contains("2026-07-25")));
 }
 
 #[test]

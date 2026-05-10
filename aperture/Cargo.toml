@@ -35,3 +35,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
+# Drops unwinding tables — saves ~5 KB in the wasm artifact and a smaller
+# amount in the native binary. Aperture has no panic-recovery story; on any
+# unexpected error the process exits and the swarm coordinator restarts it.
+panic = "abort"

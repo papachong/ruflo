@@ -6,22 +6,16 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct WatchlistPane {
-    id: String,
+    id: &'static str,
     items: Vec<String>,
 }
 
 impl WatchlistPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.watchlist".into(),
+            id: "aperture:pane.watchlist",
             items: Vec::new(),
         }
-    }
-
-    /// Read access used by the Risk pane to compute portfolio metrics.
-    #[allow(dead_code)]
-    pub fn items(&self) -> &[String] {
-        &self.items
     }
 }
 

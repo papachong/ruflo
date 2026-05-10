@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct TechPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct TechPane {
 impl TechPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.tech".into(),
+            id: "aperture:pane.tech",
             focus: None,
             source: StubDataSource,
         }

@@ -6,14 +6,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct OraclePane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
 }
 
 impl OraclePane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.oracle".into(),
+            id: "aperture:pane.oracle",
             focus: None,
         }
     }

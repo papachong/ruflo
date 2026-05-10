@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct OrderPane {
-    id: String,
+    id: &'static str,
     orders: Vec<Value>,
     next_id: u64,
 }
@@ -19,7 +19,7 @@ pub struct OrderPane {
 impl OrderPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.order".into(),
+            id: "aperture:pane.order",
             orders: Vec::new(),
             next_id: 1,
         }
@@ -59,16 +59,25 @@ impl Agent for OrderPane {
                         json!({"verb": "ORDER.RESULT", "error": "missing symbol/side/qty"}),
                     )];
                 };
+                if !is_valid_symbol(&symbol) {
+                    return vec![reply(
+                        &env,
+                        json!({"verb": "ORDER.RESULT", "error": "invalid symbol"}),
+                    )];
+                }
                 if !matches!(side.as_str(), "BUY" | "SELL") {
                     return vec![reply(
                         &env,
                         json!({"verb": "ORDER.RESULT", "error": "side must be BUY or SELL"}),
                     )];
                 }
-                if qty <= 0 {
+                // Bound qty to a sane positive range. The high cap stops a
+                // crafted envelope from carrying `i64::MAX` into a future
+                // real-broker shim.
+                if !(1..=10_000_000).contains(&qty) {
                     return vec![reply(
                         &env,
-                        json!({"verb": "ORDER.RESULT", "error": "qty must be positive"}),
+                        json!({"verb": "ORDER.RESULT", "error": "qty out of range (1..=10_000_000)"}),
                     )];
                 }
                 if order_type == "LMT" && limit_price.is_none() {
@@ -76,6 +85,16 @@ impl Agent for OrderPane {
                         &env,
                         json!({"verb": "ORDER.RESULT", "error": "LMT requires limit_price"}),
                     )];
+                }
+                // Reject NaN / Inf limit prices; serde_json::Value::as_f64
+                // accepts them and they would propagate to a broker.
+                if let Some(p) = limit_price {
+                    if !p.is_finite() || p <= 0.0 {
+                        return vec![reply(
+                            &env,
+                            json!({"verb": "ORDER.RESULT", "error": "limit_price must be finite and positive"}),
+                        )];
+                    }
                 }
 
                 let order = json!({
@@ -102,6 +121,22 @@ impl Agent for OrderPane {
             _ => vec![],
         }
     }
+}
+
+/// `^[A-Z][A-Z0-9.\-]{0,15}$` — short, ASCII, common-equity / crypto shape.
+/// Tighter than what the trait elsewhere accepts so a broker shim can rely
+/// on it.
+fn is_valid_symbol(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    if bytes.is_empty() || bytes.len() > 16 {
+        return false;
+    }
+    if !bytes[0].is_ascii_uppercase() {
+        return false;
+    }
+    bytes[1..]
+        .iter()
+        .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || *b == b'.' || *b == b'-')
 }
 
 #[cfg(test)]

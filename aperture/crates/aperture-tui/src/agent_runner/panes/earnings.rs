@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct EarningsPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl EarningsPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.earnings".into(),
+            id: "aperture:pane.earnings",
             source: StubDataSource,
         }
     }

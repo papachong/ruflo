@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct MoversPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl MoversPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.movers".into(),
+            id: "aperture:pane.movers",
             source: StubDataSource,
         }
     }

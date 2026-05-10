@@ -8,7 +8,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct CorpactPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -16,7 +16,7 @@ pub struct CorpactPane {
 impl CorpactPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.corpact".into(),
+            id: "aperture:pane.corpact",
             focus: None,
             source: StubDataSource,
         }

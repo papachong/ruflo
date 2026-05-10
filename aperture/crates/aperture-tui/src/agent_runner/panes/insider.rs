@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct InsiderPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct InsiderPane {
 impl InsiderPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.insider".into(),
+            id: "aperture:pane.insider",
             focus: None,
             source: StubDataSource,
         }

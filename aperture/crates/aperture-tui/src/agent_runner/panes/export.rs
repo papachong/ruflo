@@ -11,13 +11,13 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct ExportPane {
-    id: String,
+    id: &'static str,
 }
 
 impl ExportPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.export".into(),
+            id: "aperture:pane.export",
         }
     }
 }

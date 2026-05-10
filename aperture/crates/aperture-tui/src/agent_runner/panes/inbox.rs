@@ -11,14 +11,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct InboxPane {
-    id: String,
+    id: &'static str,
     messages: Vec<Value>,
 }
 
 impl InboxPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.inbox".into(),
+            id: "aperture:pane.inbox",
             messages: Vec::new(),
         }
     }

@@ -10,14 +10,14 @@ use serde_json::json;
 use crate::agent_runner::verb;
 
 pub struct MacroPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl MacroPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.macro".into(),
+            id: "aperture:pane.macro",
             source: StubDataSource,
         }
     }

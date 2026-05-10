@@ -10,14 +10,26 @@ use crate::shell_routing::{Pane, ViewLine};
 pub(super) fn render_quote(p: &Value) -> Vec<ViewLine> {
     let sym = p.get("symbol").and_then(Value::as_str).unwrap_or("?");
     let last = p.get("last").and_then(Value::as_f64).unwrap_or(0.0);
-    let chg = p.get("change_pct").and_then(Value::as_f64).unwrap_or(0.0);
+    // Quote pane emits camelCase `changePct`; fall back to snake_case for
+    // forward-compat with future providers that follow the trait convention.
+    let chg = p
+        .get("changePct")
+        .or_else(|| p.get("change_pct"))
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
     vec![line(Pane::Quote, format!("{sym}  {last:.2}  {chg:+.2}%"))]
 }
 
 pub(super) fn render_chart(p: &Value) -> Vec<ViewLine> {
     let sym = p.get("symbol").and_then(Value::as_str).unwrap_or("?");
     let mut out = vec![line(Pane::Chart, format!("CHART {sym}"))];
-    if let Some(rows) = p.get("ascii").and_then(Value::as_array) {
+    // Chart pane emits `lines` (already-formatted ASCII rows). `ascii` was
+    // the original field name from a discarded design.
+    if let Some(rows) = p
+        .get("lines")
+        .or_else(|| p.get("ascii"))
+        .and_then(Value::as_array)
+    {
         for r in rows {
             if let Some(s) = r.as_str() {
                 out.push(line(Pane::Chart, s.to_string()));
@@ -28,15 +40,18 @@ pub(super) fn render_chart(p: &Value) -> Vec<ViewLine> {
 }
 
 pub(super) fn render_watch(p: &Value, verb: &str) -> Vec<ViewLine> {
-    let symbols = p
-        .get("symbols")
+    // Watchlist pane emits `items`; `symbols` retained as a fallback for
+    // any host that already encodes it that way.
+    let items = p
+        .get("items")
+        .or_else(|| p.get("symbols"))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    if symbols.is_empty() {
+    if items.is_empty() {
         return vec![line(Pane::Watch, format!("{verb}  (empty)"))];
     }
-    let names: Vec<String> = symbols
+    let names: Vec<String> = items
         .iter()
         .filter_map(|v| v.as_str().map(String::from))
         .collect();
@@ -118,12 +133,15 @@ pub(super) fn render_options(p: &Value) -> Vec<ViewLine> {
         .unwrap_or_default();
     for r in rows.iter().take(10) {
         let strike = r.get("strike").and_then(Value::as_f64).unwrap_or(0.0);
-        let iv = r.get("iv").and_then(Value::as_f64).unwrap_or(0.0);
-        let oi = r.get("oi").and_then(Value::as_i64).unwrap_or(0);
-        let kind = r.get("type").and_then(Value::as_str).unwrap_or("?");
+        // Stub returns `{call_iv, put_iv, call_oi, put_oi}`; old code read
+        // `iv`/`oi`/`type` which never matched.
+        let call_iv = r.get("call_iv").and_then(Value::as_f64).unwrap_or(0.0);
+        let put_iv = r.get("put_iv").and_then(Value::as_f64).unwrap_or(0.0);
+        let call_oi = r.get("call_oi").and_then(Value::as_i64).unwrap_or(0);
+        let put_oi = r.get("put_oi").and_then(Value::as_i64).unwrap_or(0);
         out.push(line(
             Pane::Options,
-            format!("{kind} K={strike:.2}  IV={iv:.2}  OI={oi}"),
+            format!("K={strike:.2}  C iv={call_iv:.2}/oi={call_oi}  P iv={put_iv:.2}/oi={put_oi}"),
         ));
     }
     out
@@ -197,7 +215,12 @@ pub(super) fn render_risk(p: &Value) -> Vec<ViewLine> {
     for r in rows.iter().take(20) {
         let sym = r.get("symbol").and_then(Value::as_str).unwrap_or("?");
         let beta = r.get("beta").and_then(Value::as_f64).unwrap_or(0.0);
-        let vol = r.get("volatility").and_then(Value::as_f64).unwrap_or(0.0);
+        // Stub emits `vol_annualised`; older `volatility` retained as fallback.
+        let vol = r
+            .get("vol_annualised")
+            .or_else(|| r.get("volatility"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         out.push(line(
             Pane::Risk,
             format!("{sym}  beta={beta:.2}  vol={vol:.2}"),
@@ -216,8 +239,21 @@ pub(super) fn render_corpact(p: &Value) -> Vec<ViewLine> {
         .unwrap_or_default();
     for e in events.iter().take(10) {
         let kind = e.get("type").and_then(Value::as_str).unwrap_or("?");
-        let date = e.get("date").and_then(Value::as_str).unwrap_or("?");
-        let detail = e.get("detail").and_then(Value::as_str).unwrap_or("");
+        // Stub events use `ex_date` (dividend/split) or `date` (earnings).
+        let date = e
+            .get("ex_date")
+            .or_else(|| e.get("date"))
+            .and_then(Value::as_str)
+            .unwrap_or("?");
+        // No single `detail` field; surface the type-specific scalar that
+        // matters most: amount/currency for dividend, ratio for split,
+        // subject for proxy/8-K, fall back to empty otherwise.
+        let detail = e
+            .get("amount")
+            .map(value_to_compact_string)
+            .or_else(|| e.get("ratio").map(value_to_compact_string))
+            .or_else(|| e.get("subject").map(value_to_compact_string))
+            .unwrap_or_default();
         out.push(line(Pane::Corpact, format!("{date}  {kind}  {detail}")));
     }
     out

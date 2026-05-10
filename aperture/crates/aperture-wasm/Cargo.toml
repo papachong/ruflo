@@ -24,4 +24,7 @@ wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = "0.4"
 js-sys = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
-web-sys = { workspace = true, features = ["Window", "Document", "Element", "HtmlElement", "Response"] }
+# Only `Response` is referenced from `web_sys::*`; the other primitives
+# (`Window`, `Document`, etc.) are reached through `wasm_bindgen::extern`
+# bindings in `fetch_bridge`/`shell` and don't require feature gates.
+web-sys = { workspace = true, features = ["Response"] }

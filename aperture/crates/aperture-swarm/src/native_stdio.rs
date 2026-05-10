@@ -7,7 +7,12 @@
 
 use crate::envelope::Envelope;
 use std::io;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Stdin, Stdout};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Stdin, Stdout};
+
+/// Maximum size of a single inbound JSON line before the reader rejects it.
+/// At 1 MiB we can still carry a chart pane's full ASCII payload while
+/// preventing an unterminated stdin from OOM-ing the agent process.
+pub const MAX_LINE_BYTES: usize = 1 << 20;
 
 #[derive(thiserror::Error, Debug)]
 pub enum TransportError {
@@ -15,6 +20,8 @@ pub enum TransportError {
     Io(#[from] io::Error),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("line exceeds {MAX_LINE_BYTES} bytes")]
+    LineTooLong,
     #[error("eof")]
     Eof,
 }
@@ -40,11 +47,31 @@ impl StdioReader {
 
     pub async fn next(&mut self) -> Result<Envelope, TransportError> {
         self.buf.clear();
-        let n = self.inner.read_line(&mut self.buf).await?;
-        if n == 0 {
-            return Err(TransportError::Eof);
+        // Read byte-by-byte through a `take` adaptor so we hard-cap the line
+        // size and skip the unbounded `read_line` allocation. Anything past
+        // `MAX_LINE_BYTES` without a `\n` is rejected.
+        let mut bytes = Vec::with_capacity(256);
+        let mut limited = (&mut self.inner).take(MAX_LINE_BYTES as u64 + 1);
+        loop {
+            let mut chunk = [0u8; 1];
+            let n = limited.read(&mut chunk).await?;
+            if n == 0 {
+                if bytes.is_empty() {
+                    return Err(TransportError::Eof);
+                }
+                break;
+            }
+            if chunk[0] == b'\n' {
+                break;
+            }
+            bytes.push(chunk[0]);
+            if bytes.len() > MAX_LINE_BYTES {
+                return Err(TransportError::LineTooLong);
+            }
         }
-        let env: Envelope = serde_json::from_str(self.buf.trim_end())?;
+        let line = std::str::from_utf8(&bytes)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let env: Envelope = serde_json::from_str(line.trim_end())?;
         Ok(env)
     }
 }

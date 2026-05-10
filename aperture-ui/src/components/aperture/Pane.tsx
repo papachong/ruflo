@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,13 @@ interface Props {
   active?: boolean;
 }
 
-export function Pane({ spec, lines, active = false }: Props) {
+// React.memo so that an inbound message touching one pane doesn't
+// re-render the other 25. The parent uses immutable per-pane arrays
+// (the `lines` reference only changes when that pane's content changes),
+// so the default shallow prop check is correct.
+export const Pane = memo(PaneInner);
+
+function PaneInner({ spec, lines, active = false }: Props) {
   const empty = lines.length === 0;
   return (
     <Card

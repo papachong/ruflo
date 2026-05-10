@@ -157,6 +157,11 @@
 	}
 
 	function onWindowMessage(ev: MessageEvent) {
+		// Reject cross-origin / cross-window senders before touching
+		// `handle_inbound`. Defends against iframes, popups, and browser
+		// extensions trying to drive pane state.
+		if (ev.origin !== window.location.origin) return;
+		if (ev.source !== window) return;
 		const data = ev.data;
 		if (!looksLikeEnvelope(data)) return;
 		// Ignore our own outbound echoes — outbound envelopes have
@@ -206,10 +211,9 @@
 			} else {
 				if (Array.isArray(result.ok.views)) pushViews(result.ok.views);
 				if (result.ok.outbound) {
-					// Phase B: emit on window so the host worker can relay to
-					// ruflo's `message-bus.ts`. The relay itself is out of scope
-					// for v0.1.
-					window.postMessage(result.ok.outbound, "*");
+					// Pin the target origin so embedders / popups can't read
+					// outbound envelopes (ORDER + EXPORT payloads especially).
+					window.postMessage(result.ok.outbound, window.location.origin);
 				}
 			}
 		} catch (e) {

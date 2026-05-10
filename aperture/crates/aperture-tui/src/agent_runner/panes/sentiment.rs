@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct SentimentPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct SentimentPane {
 impl SentimentPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.sentiment".into(),
+            id: "aperture:pane.sentiment",
             focus: None,
             source: StubDataSource,
         }

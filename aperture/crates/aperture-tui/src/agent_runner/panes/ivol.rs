@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct IvolPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct IvolPane {
 impl IvolPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.ivol".into(),
+            id: "aperture:pane.ivol",
             focus: None,
             source: StubDataSource,
         }

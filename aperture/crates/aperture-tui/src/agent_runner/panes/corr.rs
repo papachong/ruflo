@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct CorrPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl CorrPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.corr".into(),
+            id: "aperture:pane.corr",
             source: StubDataSource,
         }
     }

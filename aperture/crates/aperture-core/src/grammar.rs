@@ -2,6 +2,13 @@ use thiserror::Error;
 
 use crate::ast::{Arg, Command, Verb};
 
+/// Hard caps to prevent pathological inputs (huge quoted strings, runaway
+/// token streams) from allocating unbounded memory. The browser shell
+/// passes any line a user types — and any envelope a different origin
+/// might post — straight into `parse`.
+pub const MAX_INPUT_BYTES: usize = 4096;
+pub const MAX_TOKENS: usize = 64;
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ParseError {
     #[error("empty input")]
@@ -14,6 +21,10 @@ pub enum ParseError {
     MissingSymbol { verb: Verb },
     #[error("ASK requires a quoted prompt")]
     AskMissingPrompt,
+    #[error("input exceeds {MAX_INPUT_BYTES} bytes")]
+    InputTooLong,
+    #[error("input exceeds {MAX_TOKENS} tokens")]
+    TooManyTokens,
 }
 
 /// Parse a single command line.
@@ -21,9 +32,15 @@ pub enum ParseError {
 /// Whitespace-separated tokens; double-quoted strings preserve internal spaces.
 /// The optional terminating `GO` sentinel is recognised and stripped.
 pub fn parse(input: &str) -> Result<Command, ParseError> {
+    if input.len() > MAX_INPUT_BYTES {
+        return Err(ParseError::InputTooLong);
+    }
     let tokens = tokenize(input)?;
     if tokens.is_empty() {
         return Err(ParseError::Empty);
+    }
+    if tokens.len() > MAX_TOKENS {
+        return Err(ParseError::TooManyTokens);
     }
 
     let (tokens, go) = strip_go(tokens);

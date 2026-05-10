@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use crate::agent_runner::{render_ascii_chart, symbol_of, verb};
 
 pub struct ChartPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct ChartPane {
 impl ChartPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.chart".into(),
+            id: "aperture:pane.chart",
             focus: None,
             source: StubDataSource,
         }

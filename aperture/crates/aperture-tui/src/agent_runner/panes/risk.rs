@@ -11,14 +11,14 @@ use serde_json::{json, Value};
 use crate::agent_runner::verb;
 
 pub struct RiskPane {
-    id: String,
+    id: &'static str,
     source: StubDataSource,
 }
 
 impl RiskPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.risk".into(),
+            id: "aperture:pane.risk",
             source: StubDataSource,
         }
     }

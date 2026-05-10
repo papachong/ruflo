@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct FilingsPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct FilingsPane {
 impl FilingsPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.filings".into(),
+            id: "aperture:pane.filings",
             focus: None,
             source: StubDataSource,
         }

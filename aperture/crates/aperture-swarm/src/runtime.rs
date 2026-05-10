@@ -47,6 +47,10 @@ where
                 eprintln!("aperture-swarm: skipping malformed envelope: {e}");
                 continue;
             }
+            Err(TransportError::LineTooLong) => {
+                eprintln!("aperture-swarm: skipping oversized line");
+                continue;
+            }
             Err(TransportError::Io(e)) => return Err(TransportError::Io(e)),
         }
     }

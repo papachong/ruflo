@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct NewsPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -15,7 +15,7 @@ pub struct NewsPane {
 impl NewsPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.news".into(),
+            id: "aperture:pane.news",
             focus: None,
             source: StubDataSource,
         }

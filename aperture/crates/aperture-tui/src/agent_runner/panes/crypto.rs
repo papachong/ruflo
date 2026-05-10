@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::agent_runner::{symbol_of, verb};
 
 pub struct CryptoPane {
-    id: String,
+    id: &'static str,
     focus: Option<String>,
     source: StubDataSource,
 }
@@ -18,7 +18,7 @@ pub struct CryptoPane {
 impl CryptoPane {
     pub fn new() -> Self {
         Self {
-            id: "aperture:pane.crypto".into(),
+            id: "aperture:pane.crypto",
             focus: None,
             source: StubDataSource,
         }
