@@ -1,5 +1,5 @@
 {
-  "_comment": "Project-specific NEW_FIXES registered on each witness regen. Append { id, desc, file, marker } per shipped fix. Never edit verification.md.json directly — re-run scripts/regen-witness.mjs after editing this file.",
+  "_comment": "Project-specific NEW_FIXES registered on each witness regen. Append { id, desc, file, marker } per shipped fix. Never edit verification.md.json directly \u2014 re-run scripts/regen-witness.mjs after editing this file.",
   "fixes": [
     {
       "id": "#1867",
@@ -9,7 +9,7 @@
     },
     {
       "id": "#1859",
-      "desc": "CLI flag/positional priority swap — named flags win over stray positionals (14 sites in hooks.ts)",
+      "desc": "CLI flag/positional priority swap \u2014 named flags win over stray positionals (14 sites in hooks.ts)",
       "file": "v3/@claude-flow/cli/dist/src/commands/hooks.js",
       "marker": "ctx.flags.file || ctx.args[0]"
     },
@@ -27,7 +27,7 @@
     },
     {
       "id": "#1874-mcp",
-      "desc": "MCP server returns spec-compliant YYYY-MM-DD string for protocolVersion (was {major,minor,patch} object — Claude Code Zod rejected it)",
+      "desc": "MCP server returns spec-compliant YYYY-MM-DD string for protocolVersion (was {major,minor,patch} object \u2014 Claude Code Zod rejected it)",
       "file": "v3/@claude-flow/mcp/dist/server.js",
       "marker": "protocolVersion = '2025-11-25'"
     },
@@ -39,19 +39,19 @@
     },
     {
       "id": "ADR-097-Phase2a",
-      "desc": "Federation peer state machine entity layer — FederationNode gains state field + suspend/evict/reactivate; canTransition gates all mutations; EVICTED is terminal under breaker flow",
+      "desc": "Federation peer state machine entity layer \u2014 FederationNode gains state field + suspend/evict/reactivate; canTransition gates all mutations; EVICTED is terminal under breaker flow",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/domain/entities/federation-node.js",
       "marker": "FederationNodeState.ACTIVE"
     },
     {
       "id": "ADR-097-Phase2b",
-      "desc": "Federation breaker service — pure evaluatePolicy + stateful FederationBreakerService with bounded per-peer telemetry buffer; coordinator sendMessage gates on !peer.isActive with PEER_SUSPENDED/PEER_EVICTED constant errors (anti-oracle)",
+      "desc": "Federation breaker service \u2014 pure evaluatePolicy + stateful FederationBreakerService with bounded per-peer telemetry buffer; coordinator sendMessage gates on !peer.isActive with PEER_SUSPENDED/PEER_EVICTED constant errors (anti-oracle)",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/application/federation-breaker-service.js",
       "marker": "FAILURE_RATIO_EXCEEDED"
     },
     {
       "id": "ADR-097-Phase2b-coordinator",
-      "desc": "Coordinator outbound short-circuit on !peer.isActive (companion to ADR-097-Phase2b) — refuses sends to SUSPENDED/EVICTED peers before session lookup, no remaining-budget echo",
+      "desc": "Coordinator outbound short-circuit on !peer.isActive (companion to ADR-097-Phase2b) \u2014 refuses sends to SUSPENDED/EVICTED peers before session lookup, no remaining-budget echo",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/application/federation-coordinator.js",
       "marker": "PEER_EVICTED"
     },
@@ -69,27 +69,39 @@
     },
     {
       "id": "ADR-097-Phase3-upstream",
-      "desc": "Federation Phase 3 upstream — coordinator.reportSpend() with SpendReporter interface + breaker fan-out + federation_report_spend MCP tool. Closes ADR-097 100% end-to-end. Event shape matches cost-tracker consumer contract verbatim (peerId, taskId, tokensUsed, usdSpent, ts, success).",
+      "desc": "Federation Phase 3 upstream \u2014 coordinator.reportSpend() with SpendReporter interface + breaker fan-out + federation_report_spend MCP tool. Closes ADR-097 100% end-to-end. Event shape matches cost-tracker consumer contract verbatim (peerId, taskId, tokensUsed, usdSpent, ts, success).",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/application/spend-reporter.js",
       "marker": "InMemorySpendReporter"
     },
     {
       "id": "ADR-104-transport",
-      "desc": "Federation plugin wires real wire transport via agentic-flow/transport/loader (loadQuicTransport). plugin.ts loads transport in initialize(), binds optional listener on config.port, closes on shutdown. sendToNode now does real ws send to peer endpoint resolved via discovery.getPeer. Validated mac↔ruvultra over tailscale (150ms real send).",
+      "desc": "Federation plugin wires real wire transport via agentic-flow/transport/loader (loadQuicTransport). plugin.ts loads transport in initialize(), binds optional listener on config.port, closes on shutdown. sendToNode now does real ws send to peer endpoint resolved via discovery.getPeer. Validated mac\u2194ruvultra over tailscale (150ms real send).",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/plugin.js",
       "marker": "agentic-flow/transport/loader"
     },
     {
       "id": "ADR-109-inbound-dispatch",
-      "desc": "Federation plugin subscribes to transport.onMessage (added in agentic-flow@2.0.12-fix.3) and dispatches inbound envelopes through inbound-dispatcher.ts. Security gates: PEER_UNKNOWN, PEER_SUSPENDED, PEER_EVICTED, MISSING_METADATA. Validated mac→ruvultra: 3/3 envelopes delivered, dispatcher fired, audit recorded 3 rejections.",
+      "desc": "Federation plugin subscribes to transport.onMessage (added in agentic-flow@2.0.12-fix.3) and dispatches inbound envelopes through inbound-dispatcher.ts. Security gates: PEER_UNKNOWN, PEER_SUSPENDED, PEER_EVICTED, MISSING_METADATA. Validated mac\u2192ruvultra: 3/3 envelopes delivered, dispatcher fired, audit recorded 3 rejections.",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/application/inbound-dispatcher.js",
       "marker": "FEDERATION_INBOUND_EVENT_PREFIX"
     },
     {
       "id": "ADR-110-memory-spend-reporter",
-      "desc": "Federation MemorySpendReporter — production SpendReporter that satisfies the cost-tracker consumer contract (namespace=federation-spend, key=fed-spend-<peerId>-<ts>, default TTL 7d). Storage-agnostic via injected MemoryStore interface; integrators wire ruflo memory MCP/CLI/direct.",
+      "desc": "Federation MemorySpendReporter \u2014 production SpendReporter that satisfies the cost-tracker consumer contract (namespace=federation-spend, key=fed-spend-<peerId>-<ts>, default TTL 7d). Storage-agnostic via injected MemoryStore interface; integrators wire ruflo memory MCP/CLI/direct.",
       "file": "v3/@claude-flow/plugin-agent-federation/dist/application/spend-reporter.js",
       "marker": "MemorySpendReporter"
+    },
+    {
+      "id": "ADR-109-sig-verify",
+      "desc": "Inbound dispatcher Ed25519 signature verification \u2014 closes the trust gap where sourceNodeId in metadata was a self-claim. canonicalizeEnvelopeForVerify produces deterministic signing bytes. Outbound side signs in plugin.ts sendToNode; receiver verifies against discovery's published peer.publicKey. Reject INVALID_SIGNATURE if missing or bad. Validated alpha.11.",
+      "file": "v3/@claude-flow/plugin-agent-federation/dist/application/inbound-dispatcher.js",
+      "marker": "INVALID_SIGNATURE"
+    },
+    {
+      "id": "ADR-104-compression",
+      "desc": "WebSocket transport enables permessage-deflate (threshold 256B, zlib level 3, no-context-takeover both sides). Bytes-on-wire savings without latency cost \u2014 verified mac\u2194ruvultra at 10KB payload, p50=0ms, p95=1ms (same as 2KB baseline).",
+      "file": "v3/@claude-flow/plugin-agent-federation/dist/plugin.js",
+      "marker": "Ed25519 sig verify"
     }
   ]
 }

@@ -168,3 +168,134 @@ describe('dispatchInbound — robustness', () => {
     expect(audits[0].eventType).toBe('message_received');
   });
 });
+
+describe('dispatchInbound — signature verification', () => {
+  function withVerifier(
+    peers: FederationNode[],
+    verify: (canon: string, sig: string | null, pk: string) => boolean,
+  ) {
+    const base = mkDeps(peers);
+    return {
+      ...base,
+      deps: { ...base.deps, verifyEnvelope: verify },
+    };
+  }
+
+  it('rejects INVALID_SIGNATURE when verifier returns false', async () => {
+    const peer = mkPeer('alpha');
+    const { deps, audits, events } = withVerifier([peer], () => false);
+    const msg = {
+      ...baseMsg('alpha'),
+      metadata: { sourceNodeId: 'alpha', signature: 'fake-sig' },
+    };
+    const r = await dispatchInbound('1.2.3.4:9999', msg, deps);
+    expect(r).toEqual({ accepted: false, reason: 'INVALID_SIGNATURE' });
+    expect(audits[0].eventType).toBe('message_rejected');
+    expect((audits[0].data as { metadata: { reason: string } }).metadata.reason).toBe(
+      'INVALID_SIGNATURE',
+    );
+    expect(events).toEqual([]);
+  });
+
+  it('rejects when signature is missing from metadata (verifier called with null)', async () => {
+    const peer = mkPeer('alpha');
+    let calledWith: { sig: string | null } | null = null;
+    const { deps, audits } = withVerifier([peer], (_canon, sig) => {
+      calledWith = { sig };
+      return false;
+    });
+    // Message has sourceNodeId but no signature — verifier sees sig=null
+    const r = await dispatchInbound('a', baseMsg('alpha'), deps);
+    expect(r).toEqual({ accepted: false, reason: 'INVALID_SIGNATURE' });
+    expect(calledWith).toEqual({ sig: null });
+    expect(audits[0].eventType).toBe('message_rejected');
+  });
+
+  it('accepts when verifier returns true', async () => {
+    const peer = mkPeer('alpha');
+    const { deps, audits, events } = withVerifier([peer], () => true);
+    const msg = {
+      ...baseMsg('alpha'),
+      metadata: { sourceNodeId: 'alpha', signature: 'valid-sig' },
+    };
+    const r = await dispatchInbound('a', msg, deps);
+    expect(r).toEqual({ accepted: true, sourceNodeId: 'alpha', messageType: 'task' });
+    expect(audits[0].eventType).toBe('message_received');
+    expect(events).toHaveLength(1);
+  });
+
+  it('verifier is called with peer publicKey (not attacker-supplied)', async () => {
+    const peer = mkPeer('alpha');
+    let receivedPk = '';
+    const { deps } = withVerifier([peer], (_c, _s, pk) => {
+      receivedPk = pk;
+      return true;
+    });
+    await dispatchInbound('a', { ...baseMsg('alpha'), metadata: { sourceNodeId: 'alpha', signature: 's' } }, deps);
+    // pk-alpha is set in mkPeer, NOT something the attacker can spoof
+    expect(receivedPk).toBe('pk-alpha');
+  });
+
+  it('peer-state checks fire BEFORE signature check (cheaper rejections first)', async () => {
+    const peer = mkPeer('alpha', FederationNodeState.SUSPENDED);
+    let verifyCalled = false;
+    const { deps } = withVerifier([peer], () => {
+      verifyCalled = true;
+      return true;
+    });
+    const r = await dispatchInbound('a', baseMsg('alpha'), deps);
+    expect(r.accepted).toBe(false);
+    if (!r.accepted) expect(r.reason).toBe('PEER_SUSPENDED');
+    // SUSPENDED rejection short-circuits BEFORE the (expensive) sig check
+    expect(verifyCalled).toBe(false);
+  });
+
+  it('legacy mode (no verifier injected) accepts without sig check — backward compat', async () => {
+    const peer = mkPeer('alpha');
+    const { deps, events } = mkDeps([peer]); // no verifyEnvelope
+    const r = await dispatchInbound('a', baseMsg('alpha'), deps);
+    expect(r.accepted).toBe(true);
+    expect(events).toHaveLength(1);
+  });
+});
+
+describe('canonicalizeEnvelopeForVerify', () => {
+  it('strips signature from metadata before canonicalization', async () => {
+    const { canonicalizeEnvelopeForVerify } = await import(
+      '../../src/application/inbound-dispatcher.js'
+    );
+    const withSig = canonicalizeEnvelopeForVerify({
+      id: 'm',
+      type: 't',
+      payload: { x: 1 },
+      metadata: { sourceNodeId: 'a', signature: 'XXX' },
+    });
+    const withoutSig = canonicalizeEnvelopeForVerify({
+      id: 'm',
+      type: 't',
+      payload: { x: 1 },
+      metadata: { sourceNodeId: 'a' },
+    });
+    expect(withSig).toBe(withoutSig);
+  });
+
+  it('produces deterministic output (same fields → same string)', async () => {
+    const { canonicalizeEnvelopeForVerify } = await import(
+      '../../src/application/inbound-dispatcher.js'
+    );
+    const a = canonicalizeEnvelopeForVerify({
+      id: 'm',
+      type: 't',
+      payload: { x: 1 },
+      metadata: { sourceNodeId: 'a' },
+    });
+    const b = canonicalizeEnvelopeForVerify({
+      // same inputs, different construction order
+      metadata: { sourceNodeId: 'a' },
+      payload: { x: 1 },
+      type: 't',
+      id: 'm',
+    });
+    expect(a).toBe(b);
+  });
+});

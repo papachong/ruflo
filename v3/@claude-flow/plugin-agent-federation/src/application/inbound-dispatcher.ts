@@ -33,7 +33,24 @@ export type InboundRejectionReason =
   | 'PEER_SUSPENDED'
   | 'PEER_EVICTED'
   | 'MISSING_METADATA'
-  | 'INVALID_PAYLOAD';
+  | 'INVALID_PAYLOAD'
+  | 'INVALID_SIGNATURE';
+
+/**
+ * Verifier function for inbound envelopes. Given the canonical bytes of
+ * the message + the claimed signature + the peer's published public
+ * key, returns true iff the signature is valid. Plugin wires this with
+ * `@noble/ed25519`; tests inject a mock.
+ *
+ * Returning `null` means "no signature provided" — handled by the
+ * dispatcher as INVALID_SIGNATURE (defense: unsigned messages from
+ * known peers are still rejected).
+ */
+export type EnvelopeVerifier = (
+  canonicalBytes: string,
+  signatureHex: string | null,
+  peerPublicKeyHex: string,
+) => boolean;
 
 /** Dispatch dependencies (kept narrow for testability). */
 export interface InboundDispatchDeps {
@@ -44,6 +61,41 @@ export interface InboundDispatchDeps {
     debug: (m: string) => void;
     warn: (m: string) => void;
   };
+  /**
+   * Optional Ed25519 envelope verifier. When PROVIDED, every accepted
+   * message MUST pass verification — `null` signature or false-returning
+   * verifier rejects the message as INVALID_SIGNATURE.
+   *
+   * When OMITTED, the dispatcher operates in legacy "trust the metadata"
+   * mode (backward compat for tests that inject minimal deps). Production
+   * MUST inject this — see the plugin.ts wiring.
+   */
+  readonly verifyEnvelope?: EnvelopeVerifier;
+}
+
+/**
+ * Canonical serialization of an envelope for signing. Sorts keys to
+ * make the signed bytes deterministic regardless of object construction
+ * order. Excludes the `signature` field itself (it's what we're
+ * verifying).
+ *
+ * Federation messages are wrapped as `AgentMessage{id, type, payload,
+ * metadata}` on the wire. The `payload` is the actual FederationEnvelope
+ * (per `plugin.ts sendToNode`); we canonicalize the payload + the
+ * metadata so the receiver verifies the same bytes the sender signed.
+ */
+export function canonicalizeEnvelopeForVerify(message: AgentMessage): string {
+  const meta = (message.metadata ?? {}) as Record<string, unknown>;
+  // Strip signature from metadata if present (we verify the rest)
+  const { signature: _sig, ...metaForSig } = meta;
+  const canon = {
+    id: message.id,
+    type: message.type,
+    payload: message.payload,
+    metadata: metaForSig,
+  };
+  // Sort keys for determinism
+  return JSON.stringify(canon, Object.keys(canon).sort());
 }
 
 /** Outcome reported to the caller (mostly for tests + observability). */
@@ -101,6 +153,24 @@ export async function dispatchInbound(
       metadata: { address, reason: 'PEER_EVICTED' },
     });
     return { accepted: false, reason: 'PEER_EVICTED' };
+  }
+
+  // Cryptographic signature verification (closes the trust gate that
+  // peer-state checks alone don't provide — without this, a malicious
+  // sender could just claim sourceNodeId='known-peer' in metadata and
+  // pass the previous gates).
+  if (deps.verifyEnvelope) {
+    const sig = typeof meta.signature === 'string' ? meta.signature : null;
+    const canon = canonicalizeEnvelopeForVerify(message);
+    const ok = deps.verifyEnvelope(canon, sig, peer.publicKey);
+    if (!ok) {
+      await deps.audit.log('message_rejected', {
+        sourceNodeId,
+        metadata: { address, reason: 'INVALID_SIGNATURE' },
+      });
+      deps.logger.warn(`Inbound rejected: bad signature from ${sourceNodeId} (addr=${address})`);
+      return { accepted: false, reason: 'INVALID_SIGNATURE' };
+    }
   }
 
   // Touch lastSeen on every successful inbound — drives the

@@ -1,8 +1,8 @@
 {
   "manifest": {
     "schema": "ruflo-witness/v1",
-    "issuedAt": "2026-05-09T23:02:00.127Z",
-    "gitCommit": "c6dacd45fe531dbe8a51c321cbe92a39dd3e3e5d",
+    "issuedAt": "2026-05-10T00:09:11.979Z",
+    "gitCommit": "43b566da66aebbe423541697313bca88d4cc4c17",
     "branch": "feat/federation-deferred-adrs",
     "os": "macos",
     "releases": {
@@ -12,8 +12,8 @@
       "@claude-flow/memory": "3.0.0-alpha.15"
     },
     "summary": {
-      "totalFixes": 93,
-      "verified": 93,
+      "totalFixes": 95,
+      "verified": 95,
       "missing": 0
     },
     "fixes": [
@@ -229,7 +229,7 @@
         "id": "G2",
         "desc": "federation real Ed25519 signing/verification",
         "file": "v3/@claude-flow/plugin-agent-federation/dist/plugin.js",
-        "sha256": "055bb1e4128915c0f88102ff51693aad09a4a5cf2051c2ca224fc470677c06ed",
+        "sha256": "9f751aaee838a85e7b2371bbd73dccb5cb89c6b7751496b18d33d8b8a559de19",
         "marker": "@noble/ed25519",
         "markerVerified": true
       },
@@ -741,7 +741,7 @@
         "id": "ADR-104-transport",
         "desc": "Federation plugin wires real wire transport via agentic-flow/transport/loader (loadQuicTransport). plugin.ts loads transport in initialize(), binds optional listener on config.port, closes on shutdown. sendToNode now does real ws send to peer endpoint resolved via discovery.getPeer. Validated mac↔ruvultra over tailscale (150ms real send).",
         "file": "v3/@claude-flow/plugin-agent-federation/dist/plugin.js",
-        "sha256": "055bb1e4128915c0f88102ff51693aad09a4a5cf2051c2ca224fc470677c06ed",
+        "sha256": "9f751aaee838a85e7b2371bbd73dccb5cb89c6b7751496b18d33d8b8a559de19",
         "marker": "agentic-flow/transport/loader",
         "markerVerified": true
       },
@@ -749,7 +749,7 @@
         "id": "ADR-109-inbound-dispatch",
         "desc": "Federation plugin subscribes to transport.onMessage (added in agentic-flow@2.0.12-fix.3) and dispatches inbound envelopes through inbound-dispatcher.ts. Security gates: PEER_UNKNOWN, PEER_SUSPENDED, PEER_EVICTED, MISSING_METADATA. Validated mac→ruvultra: 3/3 envelopes delivered, dispatcher fired, audit recorded 3 rejections.",
         "file": "v3/@claude-flow/plugin-agent-federation/dist/application/inbound-dispatcher.js",
-        "sha256": "91fe6eb0687de46f0be0c3d4ae2933f2d4cf29ca33e010d6c16731e34c0fa173",
+        "sha256": "3fd86ae2f4c65a983db43569e34d28851c5377d8acd9f4aae666cf3ae09db542",
         "marker": "FEDERATION_INBOUND_EVENT_PREFIX",
         "markerVerified": true
       },
@@ -760,15 +760,31 @@
         "sha256": "3639ce837a940df28f5734056cbed029da18d8176f4065d9eb06a380f87bc0b8",
         "marker": "MemorySpendReporter",
         "markerVerified": true
+      },
+      {
+        "id": "ADR-109-sig-verify",
+        "desc": "Inbound dispatcher Ed25519 signature verification — closes the trust gap where sourceNodeId in metadata was a self-claim. canonicalizeEnvelopeForVerify produces deterministic signing bytes. Outbound side signs in plugin.ts sendToNode; receiver verifies against discovery's published peer.publicKey. Reject INVALID_SIGNATURE if missing or bad. Validated alpha.11.",
+        "file": "v3/@claude-flow/plugin-agent-federation/dist/application/inbound-dispatcher.js",
+        "sha256": "3fd86ae2f4c65a983db43569e34d28851c5377d8acd9f4aae666cf3ae09db542",
+        "marker": "INVALID_SIGNATURE",
+        "markerVerified": true
+      },
+      {
+        "id": "ADR-104-compression",
+        "desc": "WebSocket transport enables permessage-deflate (threshold 256B, zlib level 3, no-context-takeover both sides). Bytes-on-wire savings without latency cost — verified mac↔ruvultra at 10KB payload, p50=0ms, p95=1ms (same as 2KB baseline).",
+        "file": "v3/@claude-flow/plugin-agent-federation/dist/plugin.js",
+        "sha256": "9f751aaee838a85e7b2371bbd73dccb5cb89c6b7751496b18d33d8b8a559de19",
+        "marker": "Ed25519 sig verify",
+        "markerVerified": true
       }
     ]
   },
   "integrity": {
     "manifestHashAlgo": "sha256",
-    "manifestHash": "88985a2c09755714f80fbaed74f87a1a08e42c1806ea5e25dbbe92ee8571e90a",
+    "manifestHash": "09316061d3ac7a22fecd933ca3ba7f95f6802132092c3827878841d5c2666c02",
     "signatureAlgo": "ed25519",
-    "publicKey": "d1675c65e86d9e26e13b1915a9f716d6f86ab8e11db1036eb66ca2d031a8c142",
-    "signature": "62047e935c6bb98c5f4be0275021839dc9e90f0d0d35ef56548df1170537d0d6c4ba4640820403f1bca9295f53da6b344243002c01dfae3a5469e0b92aaa7204",
+    "publicKey": "fb3ea2529c7d9fe371c8e8b1e42ff1fd62166fde1459e5871bef6f7a6bc9b535",
+    "signature": "72c6e5eb01f623108544533ff2b55ee6ebe3d4a6cfddc46812069a12ab331bfc471e07a55cae3f6a9decca70f1e72e2f83a912cb9e94570b42b241ba5c17900a",
     "seedDerivation": "sha256(gitCommit + ':ruflo-witness/v1')"
   }
 }
