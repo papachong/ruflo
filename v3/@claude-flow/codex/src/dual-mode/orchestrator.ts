@@ -64,7 +64,7 @@ export class DualModeOrchestrator extends EventEmitter {
       sharedNamespace: config.sharedNamespace ?? 'collaboration',
       timeout: config.timeout ?? 300000, // 5 minutes
       claudeCommand: config.claudeCommand ?? 'claude',
-      codexCommand: config.codexCommand ?? 'claude', // Both use claude CLI
+      codexCommand: config.codexCommand ?? 'codex',
     };
   }
 
@@ -142,17 +142,25 @@ export class DualModeOrchestrator extends EventEmitter {
     // Build the prompt with memory integration
     const enhancedPrompt = this.buildCollaborativePrompt(config);
 
-    const args = [
-      '-p', enhancedPrompt,
-      '--output-format', 'text',
-    ];
-
-    if (config.maxTurns) {
-      args.push('--max-turns', String(config.maxTurns));
-    }
-
-    if (config.model) {
-      args.push('--model', config.model);
+    // Each platform has its own non-interactive entry point and flag set:
+    //   Claude Code:  claude -p <prompt> --output-format text [--max-turns N] [--model M]
+    //   OpenAI Codex: codex exec --sandbox workspace-write --skip-git-repo-check [-m M] <prompt>
+    // (`codex exec` runs autonomously; PROMPT is a positional arg and must come last.)
+    let args: string[];
+    if (config.platform === 'claude') {
+      args = ['-p', enhancedPrompt, '--output-format', 'text'];
+      if (config.maxTurns) {
+        args.push('--max-turns', String(config.maxTurns));
+      }
+      if (config.model) {
+        args.push('--model', config.model);
+      }
+    } else {
+      args = ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check'];
+      if (config.model) {
+        args.push('-m', config.model);
+      }
+      args.push(enhancedPrompt);
     }
 
     return new Promise((resolve, reject) => {
