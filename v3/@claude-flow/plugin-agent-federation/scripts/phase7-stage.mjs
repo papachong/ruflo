@@ -12,7 +12,8 @@
  * own staging run. The two hosts swap these out-of-band before activation.
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,7 +38,17 @@ generate the local key, then exchange and re-run with real values.`);
 const stageDir = '/tmp/adr-111-stage';
 if (!existsSync(stageDir)) mkdirSync(stageDir, { recursive: true });
 
-const localKey = wgConfig.generateWgKeyPair();
+// Idempotent: reuse a previously-generated key if present so subsequent runs
+// with corrected peer args don't churn the pubkey. Key is mode 0600.
+const keyFile = join(stageDir, `wg-key-${localNodeId}.json`);
+let localKey;
+if (existsSync(keyFile)) {
+  const persisted = JSON.parse(readFileSync(keyFile, 'utf-8'));
+  localKey = { publicKey: persisted.publicKey, privateKey: persisted.privateKey, createdAt: persisted.createdAt };
+  console.log(`[reused existing key from ${keyFile}]`);
+} else {
+  localKey = wgConfig.generateWgKeyPair();
+}
 const localMeshIP = wgConfig.deriveMeshIP(localNodeId);
 const peerMeshIP = peerMeshIPArg.startsWith('TBD')
   ? wgConfig.deriveMeshIP(peerNodeId)
