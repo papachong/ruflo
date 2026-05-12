@@ -57,8 +57,8 @@ pub fn start(_mount_id: &str) -> Result<(), JsValue> {
 
 /// Browser-side App. Holds the command-bar state, the focused symbol, and the
 /// pane-local state the bare shell owns when no swarm bus is attached
-/// (watchlist + inbox — with a real bus those would live in the watchlist /
-/// inbox agents).
+/// (watchlist, inbox, order blotter — with a real bus those would live in the
+/// watchlist / inbox / order agents).
 #[wasm_bindgen]
 pub struct App {
     /// Last symbol broadcast via FOCUS, so symbol panes can re-anchor.
@@ -69,6 +69,8 @@ pub struct App {
     watchlist: Vec<String>,
     /// Local inbox — `(from, body)` pairs (INBOX posts / list).
     inbox: Vec<(String, String)>,
+    /// Local order blotter — pre-formatted order lines (ORDER / BLOTTER).
+    orders: Vec<String>,
 }
 
 #[wasm_bindgen]
@@ -80,6 +82,7 @@ impl App {
             seq: 0,
             watchlist: Vec::new(),
             inbox: Vec::new(),
+            orders: Vec::new(),
         }
     }
 
@@ -176,8 +179,66 @@ impl App {
                 }
                 Some(self.render_inbox())
             }
+            Verb::Order => {
+                // Loose cmdbar syntax — e.g. `ORDER (BUY 100) AAPL GO` or
+                // `AAPL ORDER SELL 50 GO`. Scan the args for a side / qty /
+                // ticker; record a (demo) filled MKT order.
+                let strip = |s: &str| s.trim_matches(|c| c == '(' || c == ')').to_string();
+                let words: Vec<String> = cmd.args.iter().map(|a| strip(a.as_str())).collect();
+                let side_of = |w: &str| match w.to_ascii_uppercase().as_str() {
+                    "BUY" | "B" | "LONG" => Some("BUY"),
+                    "SELL" | "S" | "SHORT" => Some("SELL"),
+                    _ => None,
+                };
+                let side = words.iter().find_map(|w| side_of(w)).unwrap_or("BUY");
+                let qty = words
+                    .iter()
+                    .find_map(|w| w.parse::<i64>().ok().filter(|n| *n > 0))
+                    .unwrap_or(0);
+                // A ticker is an alpha(+`.`) word that isn't a side keyword.
+                let is_ticker = |w: &&String| {
+                    side_of(w).is_none()
+                        && w.chars().any(|c| c.is_ascii_uppercase())
+                        && w.chars().all(|c| c.is_ascii_alphabetic() || c == '.')
+                };
+                let symbol = cmd
+                    .symbol
+                    .clone()
+                    .or_else(|| words.iter().find(is_ticker).cloned())
+                    .unwrap_or_else(|| "?".into())
+                    .to_ascii_uppercase();
+                let id = format!("ord-{:03}", self.orders.len() + 1);
+                let line = format!("{id}  {side}  {symbol}  qty {qty}  MKT  status=filled");
+                self.orders.push(line.clone());
+                Some(vec![ViewLine {
+                    pane: Pane::Order,
+                    text: format!("ORDER  + {line}"),
+                }])
+            }
+            Verb::Blotter => Some(self.render_blotter()),
             _ => None,
         }
+    }
+
+    fn render_blotter(&self) -> Vec<ViewLine> {
+        let mut out = vec![ViewLine {
+            pane: Pane::Order,
+            text: format!("Blotter (n={})", self.orders.len()),
+        }];
+        if self.orders.is_empty() {
+            out.push(ViewLine {
+                pane: Pane::Order,
+                text: "(empty — `ORDER (BUY 100) AAPL GO` to add)".into(),
+            });
+        } else {
+            for o in self.orders.iter().rev().take(50) {
+                out.push(ViewLine {
+                    pane: Pane::Order,
+                    text: o.clone(),
+                });
+            }
+        }
+        out
     }
 
     fn render_watchlist(&self, note: Option<&str>) -> Vec<ViewLine> {
