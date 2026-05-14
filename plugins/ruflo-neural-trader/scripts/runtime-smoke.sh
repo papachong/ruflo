@@ -22,7 +22,7 @@ FAILURES=()
 
 # Lock to the version this plugin is pinned against so a global
 # npx cache doesn't shadow a stale local install.
-NT_PIN="${NT_PIN:-2.8.9}"
+NT_PIN="${NT_PIN:-2.8.11}"
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -109,6 +109,9 @@ assert_field "13. --monte-carlo returns distribution" '.monteCarlo.distribution.
 assert_field "14. --optimize returns best Sharpe"    '.optimization.best.sharpeRatio' --backtest --symbol AAPL --optimize --param fast_ma:10:20:5
 assert_field "15. --signal scan returns ≥1 signal"   '.signalsCount'             --signal scan --symbols AAPL,MSFT
 assert_field "16. multi-symbol aggregate"            '.aggregate.bestSymbol'     --backtest --symbols AAPL,MSFT,GOOGL
+assert_field "17. pairs strategy returns metrics"    '.metrics.totalTrades'      --backtest --strategy pairs --symbols AAPL,MSFT
+assert_field "18. adaptive strategy picks regime"    '.regimePicked'             --backtest --strategy adaptive --symbol AAPL
+assert_field "19. multi-indicator strategy runs"     '.command'                  --backtest --strategy multi-indicator --symbol AMZN
 
 echo ""
 echo "$PASS passed, $FAIL failed"

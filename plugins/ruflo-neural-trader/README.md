@@ -10,25 +10,27 @@ Heavy jobs — multi-year walk-forward backtests, large Monte-Carlo runs, parame
 
 ## Prerequisites
 
-> ✅ **Fully fixed in `neural-trader@2.7.6`** (shipped 2026-05-14; see [post-mortem gist](https://gist.github.com/ruvnet/a1aca90a5c299d89fa92e905dab11041) and [announcement #1981](https://github.com/ruvnet/ruflo/issues/1981)).
+> ✅ **`neural-trader@^2.8.11`** (shipped 2026-05-14; see [post-mortem gist](https://gist.github.com/ruvnet/a1aca90a5c299d89fa92e905dab11041) and [announcement #1981](https://github.com/ruvnet/ruflo/issues/1981)).
 > Resolves four compounding bugs that made the package unusable since v2.5.0:
 > 1. Install-hook fork-bomb (#1974 — 120 GB RAM on Apple Silicon) — fixed in 2.7.2 ([neural-trader#109](https://github.com/ruvnet/neural-trader/pull/109)).
 > 2. `require('neural-trader')` always threw `Cannot find module './src/cli/lib/napi-loader-shared'` — missing files restored in 2.7.5 ([neural-trader#111](https://github.com/ruvnet/neural-trader/pull/111)).
 > 3. `cargo build` aborted on `aarch64-apple-darwin` (`fasthash-sys` x86-only SIMD) — placeholder hash replaced with stdlib `DefaultHasher` in 2.7.5.
-> 4. npm tarball claimed 5 platform binaries, shipped 1 — `darwin-arm64` + `darwin-x64` added in 2.7.6 (`linux-arm64-gnu` / `win32-x64-msvc` will fill in on the next tag-triggered release).
+> 4. npm tarball claimed 5 platform binaries, shipped 1 — `darwin-arm64` + `darwin-x64` added in 2.7.6.
+>
+> The 2.8.x line additionally adds a flag-style CLI dispatcher (`--backtest`, `--signal scan`, `--risk assess`, `--portfolio optimize`, `--regime`, `--train`, `--predict`, `--strategy-create`) running real math (SMA crossover / RSI mean-reversion / pairs z-score / adaptive regime-switching / multi-indicator RSI+MACD+Bollinger) against real Yahoo Finance data via `--live`. Supports `--walk-forward`, `--monte-carlo`, `--symbols A,B,C`, `--benchmark SPY`, `--optimize --param "name:min:max:step"`. The runtime smoke ([scripts/runtime-smoke.sh](scripts/runtime-smoke.sh)) covers 17 documented entry points end-to-end.
 
 ```bash
 # Recommended — keeps --ignore-scripts as defense in depth. The install
 # hook is safe in 2.7.2+, but --ignore-scripts protects against any
 # future install-script regression on this or transitive packages.
-npm install --ignore-scripts neural-trader@^2.7.6
+npm install --ignore-scripts neural-trader@^2.8.11
 ```
 
-| Platform | Native binding in 2.7.6 |
-|----------|------------------------|
+| Platform | Native binding in 2.8.11 |
+|----------|--------------------------|
 | `linux-x64-gnu` | ✅ |
-| `darwin-arm64` (Apple Silicon) | ✅ first time ever shipped |
-| `darwin-x64` (Intel Macs) | ✅ first time ever shipped |
+| `darwin-arm64` (Apple Silicon) | ✅ first shipped in 2.7.5 |
+| `darwin-x64` (Intel Macs) | ✅ first shipped in 2.7.6 |
 | `linux-arm64-gnu` | ⏳ JS surface works, native calls throw at runtime |
 | `win32-x64-msvc` | ⏳ JS surface works, native calls throw at runtime |
 
