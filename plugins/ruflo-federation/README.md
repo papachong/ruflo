@@ -79,6 +79,8 @@ Federation's "PII Pipeline" feature is a richer specialization of the canonical 
 
 Federation extends the canonical gates with adaptive confidence calibration and trust-level-aware policies, but the gate ordering and intent are identical. New federated content paths should reference the canonical 3-gate pattern by name.
 
+With the [`aidefence@2.3.0` upgrade (ADR-118)](../../v3/docs/adr/ADR-118-aidefence-2.3.0-upgrade.md), the inbound `aidefence_is_safe` gate (Gate 3) now catches a wider injection surface — `ignore all previous instructions` family (0..4 modifier-word window), role-hijack (`you are now …` / `act as …` / `pretend to be …`), and jailbreak markers (`DAN mode` / `developer mode` / `god mode` / `root mode`). Federation's adaptive confidence calibration runs over the broader detection set automatically; no plugin code change required.
+
 ## Namespace coordination
 
 This plugin owns the `federation` AgentDB namespace. This is the documented exception to the kebab-case `<plugin-stem>-<intent>` rule: when a plugin's name *is* the intent, the namespace can match the plugin stem. See [ruflo-agentdb ADR-0001 §"Namespace convention"](../ruflo-agentdb/docs/adrs/0001-agentdb-optimization.md). Reserved namespaces (`pattern`, `claude-memories`, `default`) MUST NOT be shadowed.

@@ -72,7 +72,7 @@ Raw cookies and tokens never enter AgentDB unwrapped — see ADR §3.
 
 1. **Pre-storage scan** — every scraped string passes `aidefence_has_pii` before AgentDB store.
 2. **Cookie sanitization** — `aidefence_scan` flags high-entropy strings; vault them in `browser-cookies`.
-3. **Prompt-injection check** — extracted text returning to an LLM passes `aidefence_is_safe`. Hits get quarantined to `findings.md`.
+3. **Prompt-injection check** — extracted text returning to an LLM passes `aidefence_is_safe`. Hits get quarantined to `findings.md`. With [`aidefence@2.3.0` (ADR-118)](../../v3/docs/adr/ADR-118-aidefence-2.3.0-upgrade.md) the check now catches role-hijack (`you are now …` / `act as …` / `pretend to be …`) and jailbreak markers (`DAN mode` / `developer mode` / `god mode` / `root mode`) in addition to the canonical `ignore all previous instructions` family — high-leverage upgrade for browser-scraped pages.
 
 ## MCP surface
 
