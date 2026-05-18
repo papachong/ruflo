@@ -479,6 +479,58 @@ jobs:
         shell: bash
         run: node scripts/smoke-embeddings-diskann.mjs
 
+  rag-hybrid-benchmark:
+    # ADR-121 Phase 17 — Hybrid sparse+dense retrieval (BM25 + RRF).
+    # Runs on real Xenova ONNX embeddings over a 24-doc corpus mixing
+    # generic-vocab and rare-token (CVE/SHA/error-code) docs. Pass
+    # criterion: hybrid never regresses on rare-token queries vs
+    # pure dense — the design goal — with a note when dense saturates
+    # and hybrid's RRF fusion dilutes the equal-weight contribution
+    # (handled by Phase 16 adaptive router with the rareTokenDensity
+    # signal). Witness-signed manifest re-verified in independent
+    # process + uploaded as CI artifact.
+    name: rag hybrid sparse+dense benchmark + witness (#2036, ADR-121 Phase 17)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build embeddings + CLI
+        run: |
+          cd v3/@claude-flow/embeddings
+          npm install --no-audit --no-fund --legacy-peer-deps
+          npx tsc -p tsconfig.json
+          cd ../cli
+          npm install --no-audit --no-fund --legacy-peer-deps
+          npx tsc --build --force tsconfig.json
+
+      - name: Run hybrid retrieval benchmark (witness-signed)
+        shell: bash
+        run: node scripts/benchmark-rag-hybrid.mjs
+
+      - name: Verify witness manifest (independent process)
+        shell: bash
+        run: |
+          FILE=$(ls -t bench-witness/rag-hybrid-*.json | head -1)
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            const { verify } = await import('./v3/@claude-flow/embeddings/dist/witness.js');
+            const m = JSON.parse(fs.readFileSync('$FILE', 'utf8'));
+            if (!verify(m.witness)) { console.error('VERIFY FAILED'); process.exit(1); }
+            console.log('Hybrid witness verifies OK:', m.witness.contentHash);
+          "
+
+      - name: Upload witness as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-hybrid-witness
+          path: bench-witness/rag-hybrid-*.json
+
   rag-adaptive-router-benchmark:
     # ADR-121 Phase 16 — Adaptive primitive selection benchmark.
     # The router examines (corpus duplicate density, query intent

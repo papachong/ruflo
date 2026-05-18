@@ -45,12 +45,21 @@ export interface RetrievalFeatures {
   readonly queryIntentCohesion: number;
   /** 1 - cosine(question_vec, mean(hypothetical_vecs)). Range [0, 2]. Higher = larger Q/A space gap. */
   readonly qaSpaceGap: number;
+  /**
+   * Phase 17 — Mean IDF of unique query tokens (relative to a BM25
+   * index over the corpus). Higher = query has rare/technical
+   * tokens that dense embeddings tend to underweight → hybrid
+   * sparse+dense retrieval wins. 0 when no BM25 index was provided.
+   */
+  readonly rareTokenDensity: number;
   /** How many top candidates were used to compute duplicateDensity. */
   readonly candidateCountUsed: number;
   /** How many variants were used to compute intent cohesion. */
   readonly variantCount: number;
   /** How many hypotheticals were used to compute Q/A gap. */
   readonly hypotheticalCount: number;
+  /** True if the caller provided a BM25 index for rareTokenDensity. */
+  readonly bm25IndexProvided: boolean;
 }
 
 export interface AdaptiveRouterOptions {
@@ -71,13 +80,20 @@ export interface AdaptiveRouterOptions {
    */
   readonly qaGapThreshold?: number;
   /**
+   * Phase 17 — Threshold above which rareTokenDensity (mean query IDF)
+   * triggers the HYBRID signal. Default 2.0 — IDF ≥ 2.0 means the
+   * query's tokens appear in <~13% of the corpus, where BM25's
+   * sparse lexical signal materially helps dense retrieval.
+   */
+  readonly rareTokenThreshold?: number;
+  /**
    * If 2+ signals fire, return `compound` instead of one of the
    * individual primitives. Default true.
    */
   readonly preferCompoundWhenMultipleSignals?: boolean;
 }
 
-export type AdaptivePrimitive = 'plain' | 'mmr' | 'rrf' | 'hyde' | 'compound';
+export type AdaptivePrimitive = 'plain' | 'mmr' | 'rrf' | 'hyde' | 'hybrid' | 'compound';
 
 export interface AdaptiveDecision {
   /** The recommended primitive. */
@@ -85,7 +101,7 @@ export interface AdaptiveDecision {
   /** Human-readable explanation citing which signals fired. */
   readonly reason: string;
   /** Which signals were above their respective thresholds. */
-  readonly signals: Readonly<{ mmr: boolean; rrf: boolean; hyde: boolean }>;
+  readonly signals: Readonly<{ mmr: boolean; rrf: boolean; hyde: boolean; hybrid: boolean }>;
   /** Echo of the input features for traceability. */
   readonly features: RetrievalFeatures;
 }
@@ -125,7 +141,7 @@ function meanVector(vectors: ReadonlyArray<Float32Array | number[]>): Float32Arr
 }
 
 /**
- * Extract the three routing signals from the available inputs.
+ * Extract the routing signals from the available inputs.
  *
  * @param topCandidates  — top-N hits from a cheap plain search,
  *                          with vectors. Used for duplicateDensity.
@@ -137,15 +153,19 @@ function meanVector(vectors: ReadonlyArray<Float32Array | number[]>): Float32Arr
  *                          to compute the signal.
  * @param hypotheticalVectors — N hypothetical-answer vectors. Used
  *                          for qaSpaceGap. At least 1 required.
+ * @param bm25Input — optional {queryText, bm25Index} pair for the
+ *                          Phase 17 hybrid signal. Pass `null` to
+ *                          disable.
  *
- * Cost: O(N²·dim) for the pairwise cosines (N is candidate count or
- * variant count — both kept small), plus O(N·dim) for the Q/A gap.
+ * Cost: O(N²·dim) for the pairwise cosines + O(|q|) for the BM25
+ * mean-IDF lookup.
  */
 export function extractRetrievalFeatures(
   topCandidates: ReadonlyArray<{ vector: Float32Array | number[] }> | null,
   queryVector: Float32Array | number[],
   variantVectors: ReadonlyArray<Float32Array | number[]>,
   hypotheticalVectors: ReadonlyArray<Float32Array | number[]>,
+  bm25Input?: { queryText: string; index: { df: ReadonlyMap<string, number>; N: number } } | null,
 ): RetrievalFeatures {
   // Duplicate density: pairwise cosine of top candidates.
   const candVecs = (topCandidates ?? []).map(c => c.vector);
@@ -161,13 +181,37 @@ export function extractRetrievalFeatures(
     qaSpaceGap = 1 - cosineSim(queryVector, mean);
   }
 
+  // Phase 17 — rare-token density from BM25 mean IDF.
+  let rareTokenDensity = 0;
+  let bm25IndexProvided = false;
+  if (bm25Input && bm25Input.index && typeof bm25Input.queryText === 'string') {
+    bm25IndexProvided = true;
+    // Inline the IDF computation to avoid an import cycle.
+    const tokens = Array.from(new Set(
+      bm25Input.queryText.toLowerCase().split(/[^a-z0-9]+/i).filter(t => t.length >= 2),
+    ));
+    const { df, N } = bm25Input.index;
+    let total = 0;
+    let counted = 0;
+    for (const t of tokens) {
+      const dfT = df.get(t) ?? 0;
+      if (dfT === 0) continue;
+      const idf = Math.log(((N - dfT + 0.5) / (dfT + 0.5)) + 1);
+      total += idf;
+      counted++;
+    }
+    rareTokenDensity = counted === 0 ? 0 : total / counted;
+  }
+
   return {
     duplicateDensity,
     queryIntentCohesion,
     qaSpaceGap,
+    rareTokenDensity,
     candidateCountUsed: candVecs.length,
     variantCount: variantVectors.length,
     hypotheticalCount: hypotheticalVectors.length,
+    bm25IndexProvided,
   };
 }
 
@@ -182,26 +226,29 @@ export function adaptiveRoute(
   const dupT = options.duplicateThreshold ?? 0.85;
   const intentT = options.intentCohesionThreshold ?? 0.55;
   const gapT = options.qaGapThreshold ?? 0.35;
+  const rareT = options.rareTokenThreshold ?? 2.0;
   const compound = options.preferCompoundWhenMultipleSignals ?? true;
 
   // Only fire a signal when the underlying input was actually present.
   const mmrSignal = features.candidateCountUsed >= 2 && features.duplicateDensity > dupT;
   const rrfSignal = features.variantCount >= 2 && features.queryIntentCohesion < intentT;
   const hydeSignal = features.hypotheticalCount >= 1 && features.qaSpaceGap > gapT;
+  const hybridSignal = features.bm25IndexProvided && features.rareTokenDensity > rareT;
 
-  const fireCount = (mmrSignal ? 1 : 0) + (rrfSignal ? 1 : 0) + (hydeSignal ? 1 : 0);
+  const fireCount = (mmrSignal ? 1 : 0) + (rrfSignal ? 1 : 0) + (hydeSignal ? 1 : 0) + (hybridSignal ? 1 : 0);
 
   let primitive: AdaptivePrimitive;
   let reason: string;
   if (fireCount === 0) {
     primitive = 'plain';
-    reason = `No signals fired (dup=${features.duplicateDensity.toFixed(3)}<=${dupT}, intentCohesion=${features.queryIntentCohesion.toFixed(3)}>=${intentT}, qaGap=${features.qaSpaceGap.toFixed(3)}<=${gapT}); plain top-k is sufficient.`;
+    reason = `No signals fired (dup=${features.duplicateDensity.toFixed(3)}<=${dupT}, intentCohesion=${features.queryIntentCohesion.toFixed(3)}>=${intentT}, qaGap=${features.qaSpaceGap.toFixed(3)}<=${gapT}${features.bm25IndexProvided ? `, rareToken=${features.rareTokenDensity.toFixed(3)}<=${rareT}` : ''}); plain top-k is sufficient.`;
   } else if (fireCount >= 2 && compound) {
     primitive = 'compound';
     const fired = [
       mmrSignal ? `MMR(dup=${features.duplicateDensity.toFixed(3)}>${dupT})` : null,
       rrfSignal ? `RRF(intent=${features.queryIntentCohesion.toFixed(3)}<${intentT})` : null,
       hydeSignal ? `HyDE(qaGap=${features.qaSpaceGap.toFixed(3)}>${gapT})` : null,
+      hybridSignal ? `Hybrid(rareToken=${features.rareTokenDensity.toFixed(3)}>${rareT})` : null,
     ].filter(Boolean).join(', ');
     reason = `Multiple signals fired: ${fired}; compound primitive composes them all.`;
   } else if (mmrSignal) {
@@ -210,15 +257,18 @@ export function adaptiveRoute(
   } else if (rrfSignal) {
     primitive = 'rrf';
     reason = `RRF signal fired: queryIntentCohesion=${features.queryIntentCohesion.toFixed(3)}<${intentT}; reformulations cover distinct intents, rank-fusion preserves boundaries.`;
-  } else {
+  } else if (hydeSignal) {
     primitive = 'hyde';
     reason = `HyDE signal fired: qaSpaceGap=${features.qaSpaceGap.toFixed(3)}>${gapT}; question and hypothetical answers diverge in vector space, HyDE bridges the gap.`;
+  } else {
+    primitive = 'hybrid';
+    reason = `Hybrid signal fired: rareTokenDensity=${features.rareTokenDensity.toFixed(3)}>${rareT}; query has rare/technical tokens that dense retrieval underweights, BM25 fusion recovers them.`;
   }
 
   return {
     primitive,
     reason,
-    signals: { mmr: mmrSignal, rrf: rrfSignal, hyde: hydeSignal },
+    signals: { mmr: mmrSignal, rrf: rrfSignal, hyde: hydeSignal, hybrid: hybridSignal },
     features,
   };
 }

@@ -144,6 +144,35 @@ export {
   type AverageEmbeddingsOptions,
 } from './embedding-fusion.js';
 
+// ADR-121 Phase 17 — Hybrid sparse+dense retrieval.
+// Composes BM25 (sparse lexical) + dense vector search via RRF.
+// Standard production fix for the "dense embeddings underweight
+// rare/technical terms" failure mode.
+export {
+  hybridRetrieval,
+  type HybridRetrievalOptions,
+  type HybridRetrievalDiagnostics,
+  type HybridRetrievalResult,
+} from './hybrid-retrieval.js';
+
+// ADR-121 Phase 17 — Sparse lexical retrieval (Okapi BM25).
+// Pure-function BM25 — composes with dense vector retrieval via the
+// Phase 11 RRF primitive for hybrid sparse+dense search. The
+// standard production fix for the "dense embeddings underweight
+// rare technical tokens" failure mode.
+export {
+  tokenize,
+  buildBm25Index,
+  bm25Score,
+  bm25TopK,
+  idfOf,
+  queryMeanIdf,
+  type Bm25Options,
+  type Bm25Document,
+  type Bm25Index,
+  type Bm25Hit,
+} from './bm25.js';
+
 // ADR-121 Phase 16 — Adaptive primitive selection (BEYOND SOTA).
 // Pure-function feature extractor + router that examines query/corpus
 // shape and picks the right primitive automatically — saving the

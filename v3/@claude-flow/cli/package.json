@@ -1,6 +1,6 @@
 {
   "name": "@claude-flow/cli",
-  "version": "3.7.0-alpha.57",
+  "version": "3.7.0-alpha.58",
   "type": "module",
   "description": "Ruflo CLI - Enterprise AI agent orchestration with 60+ specialized agents, swarm coordination, MCP server, self-learning hooks, and vector memory for Claude Code",
   "main": "dist/src/index.js",
@@ -104,14 +104,14 @@
     "semver": "^7.6.0",
     "yaml": "^2.8.0",
     "@claude-flow/memory": "^3.0.0-alpha.17",
-    "@claude-flow/embeddings": "^3.0.0-alpha.37",
+    "@claude-flow/embeddings": "^3.0.0-alpha.38",
     "@claude-flow/security": "^3.0.0-alpha.8",
     "@claude-flow/swarm": "^3.0.0-alpha.8"
   },
   "optionalDependencies": {
     "@claude-flow/aidefence": "^3.0.2",
     "@claude-flow/codex": "^3.0.0-alpha.8",
-    "@claude-flow/embeddings": "^3.0.0-alpha.37",
+    "@claude-flow/embeddings": "^3.0.0-alpha.38",
     "@claude-flow/guidance": "^3.0.0-alpha.1",
     "@claude-flow/memory": "^3.0.0-alpha.17",
     "@claude-flow/plugin-gastown-bridge": "^0.1.3",

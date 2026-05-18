@@ -94,13 +94,15 @@ describe('adaptiveRoute', () => {
       duplicateDensity: 0.3,
       queryIntentCohesion: 0.95,
       qaSpaceGap: 0.05,
+      rareTokenDensity: 0,
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.primitive).toBe('plain');
-    expect(d.signals).toEqual({ mmr: false, rrf: false, hyde: false });
+    expect(d.signals).toEqual({ mmr: false, rrf: false, hyde: false, hybrid: false });
   });
 
   it('high duplicate density alone → mmr', () => {
@@ -111,6 +113,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.primitive).toBe('mmr');
@@ -125,6 +129,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.primitive).toBe('rrf');
@@ -139,6 +145,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.primitive).toBe('hyde');
@@ -153,10 +161,12 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.primitive).toBe('compound');
-    expect(d.signals).toEqual({ mmr: true, rrf: true, hyde: true });
+    expect(d.signals).toEqual({ mmr: true, rrf: true, hyde: true, hybrid: false });
   });
 
   it('multiple signals + preferCompound=false → picks first matching (mmr > rrf > hyde)', () => {
@@ -167,6 +177,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features, { preferCompoundWhenMultipleSignals: false });
     expect(d.primitive).toBe('mmr');
@@ -177,9 +189,11 @@ describe('adaptiveRoute', () => {
       duplicateDensity: 0.92,
       queryIntentCohesion: 0.9,
       qaSpaceGap: 0.1,
+      rareTokenDensity: 0,
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+      bm25IndexProvided: false,
     });
     expect(d.reason).toMatch(/duplicate/i);
   });
@@ -192,6 +206,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const defaultRoute = adaptiveRoute(features);
     expect(defaultRoute.primitive).toBe('plain');
@@ -207,6 +223,8 @@ describe('adaptiveRoute', () => {
       candidateCountUsed: 0, // disabled
       variantCount: 3,
       hypotheticalCount: 3,
+    rareTokenDensity: 0,
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.signals.mmr).toBe(false);
@@ -218,13 +236,123 @@ describe('adaptiveRoute', () => {
       duplicateDensity: 0.3,
       queryIntentCohesion: 0.95,
       qaSpaceGap: 0.99,
+      rareTokenDensity: 0,
       candidateCountUsed: 5,
       variantCount: 3,
       hypotheticalCount: 0, // disabled
+      bm25IndexProvided: false,
     };
     const d = adaptiveRoute(features);
     expect(d.signals.hyde).toBe(false);
     expect(d.primitive).toBe('plain');
+  });
+});
+
+describe('adaptiveRoute — hybrid (Phase 17)', () => {
+  it('high rareTokenDensity alone → hybrid', () => {
+    const features = {
+      duplicateDensity: 0.3,
+      queryIntentCohesion: 0.95,
+      qaSpaceGap: 0.05,
+      rareTokenDensity: 3.5,
+      candidateCountUsed: 5,
+      variantCount: 3,
+      hypotheticalCount: 3,
+      bm25IndexProvided: true,
+    };
+    const d = adaptiveRoute(features);
+    expect(d.primitive).toBe('hybrid');
+    expect(d.signals.hybrid).toBe(true);
+    expect(d.reason).toMatch(/rare/i);
+  });
+
+  it('rareTokenDensity high but bm25IndexProvided=false → does NOT fire hybrid', () => {
+    const features = {
+      duplicateDensity: 0.3,
+      queryIntentCohesion: 0.95,
+      qaSpaceGap: 0.05,
+      rareTokenDensity: 99,
+      candidateCountUsed: 5,
+      variantCount: 3,
+      hypotheticalCount: 3,
+      bm25IndexProvided: false,
+    };
+    const d = adaptiveRoute(features);
+    expect(d.signals.hybrid).toBe(false);
+    expect(d.primitive).toBe('plain');
+  });
+
+  it('hybrid + another signal → compound includes hybrid in fired list', () => {
+    const features = {
+      duplicateDensity: 0.92,
+      queryIntentCohesion: 0.95,
+      qaSpaceGap: 0.05,
+      rareTokenDensity: 3.5,
+      candidateCountUsed: 5,
+      variantCount: 3,
+      hypotheticalCount: 3,
+      bm25IndexProvided: true,
+    };
+    const d = adaptiveRoute(features);
+    expect(d.primitive).toBe('compound');
+    expect(d.signals.mmr).toBe(true);
+    expect(d.signals.hybrid).toBe(true);
+    expect(d.reason).toMatch(/Hybrid/);
+  });
+
+  it('custom rareTokenThreshold changes the decision', () => {
+    const features = {
+      duplicateDensity: 0.3,
+      queryIntentCohesion: 0.95,
+      qaSpaceGap: 0.05,
+      rareTokenDensity: 1.5, // below default 2.0
+      candidateCountUsed: 5,
+      variantCount: 3,
+      hypotheticalCount: 3,
+      bm25IndexProvided: true,
+    };
+    expect(adaptiveRoute(features).primitive).toBe('plain');
+    expect(adaptiveRoute(features, { rareTokenThreshold: 1.0 }).primitive).toBe('hybrid');
+  });
+});
+
+describe('extractRetrievalFeatures — Phase 17 bm25 input', () => {
+  it('high-IDF query → high rareTokenDensity', () => {
+    // 5 docs all sharing "common", one doc has "cveidentifier".
+    const fakeIndex = {
+      df: new Map([['common', 5], ['cveidentifier', 1]]),
+      N: 5,
+    };
+    const f = extractRetrievalFeatures(
+      null,
+      vec([1]),
+      [vec([1])],
+      [vec([1])],
+      { queryText: 'cveidentifier', index: fakeIndex },
+    );
+    expect(f.rareTokenDensity).toBeGreaterThan(0.5);
+    expect(f.bm25IndexProvided).toBe(true);
+  });
+
+  it('common-only query → low rareTokenDensity', () => {
+    const fakeIndex = {
+      df: new Map([['common', 5]]),
+      N: 5,
+    };
+    const f = extractRetrievalFeatures(
+      null,
+      vec([1]),
+      [vec([1])],
+      [vec([1])],
+      { queryText: 'common', index: fakeIndex },
+    );
+    expect(f.rareTokenDensity).toBeLessThan(0.3);
+  });
+
+  it('no bm25 input → rareTokenDensity = 0, bm25IndexProvided = false', () => {
+    const f = extractRetrievalFeatures(null, vec([1]), [vec([1])], [vec([1])]);
+    expect(f.rareTokenDensity).toBe(0);
+    expect(f.bm25IndexProvided).toBe(false);
   });
 });
 

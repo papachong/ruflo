@@ -1,0 +1,470 @@
+{
+  "summary": {
+    "dense": {
+      "overall": {
+        "recallAt5": 0.9375,
+        "mrr": 0.9166666666666667,
+        "ndcgAt5": 0.9265707789549604,
+        "meanLatencyMs": 1.47970325
+      },
+      "generic": {
+        "recallAt5": 0.875,
+        "ndcgAt5": 0.8531415579099209
+      },
+      "rare": {
+        "recallAt5": 1,
+        "ndcgAt5": 1
+      }
+    },
+    "sparse": {
+      "overall": {
+        "recallAt5": 0.6458333333333333,
+        "mrr": 0.8125,
+        "ndcgAt5": 0.6881846701525612,
+        "meanLatencyMs": 0.04804150000000001
+      },
+      "generic": {
+        "recallAt5": 0.29166666666666663,
+        "ndcgAt5": 0.3763693403051225
+      },
+      "rare": {
+        "recallAt5": 1,
+        "ndcgAt5": 1
+      }
+    },
+    "hybrid": {
+      "overall": {
+        "recallAt5": 0.8333333333333334,
+        "mrr": 0.9375,
+        "ndcgAt5": 0.8674999096553356,
+        "meanLatencyMs": 1.403036625
+      },
+      "generic": {
+        "recallAt5": 0.6666666666666667,
+        "ndcgAt5": 0.7349998193106713
+      },
+      "rare": {
+        "recallAt5": 1,
+        "ndcgAt5": 1
+      }
+    }
+  },
+  "perQuery": {
+    "dense": [
+      {
+        "query": "auth question (generic)",
+        "kind": "generic",
+        "hits": [
+          "auth-5",
+          "auth-3",
+          "auth-1",
+          "auth-4",
+          "auth-0"
+        ],
+        "recall": 0.8333333333333334,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.563
+      },
+      {
+        "query": "deployment question (generic)",
+        "kind": "generic",
+        "hits": [
+          "deploy-1",
+          "deploy-2",
+          "deploy-4",
+          "deploy-3",
+          "cve-2"
+        ],
+        "recall": 0.6666666666666666,
+        "ndcg": 0.8687949224876582,
+        "rr": 1,
+        "ms": 1.367625
+      },
+      {
+        "query": "storage question (generic)",
+        "kind": "generic",
+        "hits": [
+          "store-3",
+          "store-0",
+          "store-1",
+          "store-2",
+          "deploy-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.256542
+      },
+      {
+        "query": "pipeline question (generic)",
+        "kind": "generic",
+        "hits": [
+          "deploy-2",
+          "deploy-4",
+          "deploy-3",
+          "deploy-0",
+          "deploy-5"
+        ],
+        "recall": 1,
+        "ndcg": 0.5437713091520254,
+        "rr": 0.3333333333333333,
+        "ms": 1.193125
+      },
+      {
+        "query": "CVE lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-1",
+          "cve-2",
+          "sha-2",
+          "deploy-4",
+          "err-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.649834
+      },
+      {
+        "query": "CVE lookup 2 (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-2",
+          "cve-1",
+          "auth-0",
+          "err-2",
+          "fnc-1"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.639541
+      },
+      {
+        "query": "sha lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "sha-1",
+          "sha-2",
+          "cve-1",
+          "err-2",
+          "store-0"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.973334
+      },
+      {
+        "query": "function lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "fnc-2",
+          "fnc-1",
+          "auth-1",
+          "store-3",
+          "auth-5"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.194625
+      }
+    ],
+    "sparse": [
+      {
+        "query": "auth question (generic)",
+        "kind": "generic",
+        "hits": [
+          "auth-5"
+        ],
+        "recall": 0.16666666666666666,
+        "ndcg": 0.3391602052736161,
+        "rr": 1,
+        "ms": 0.166583
+      },
+      {
+        "query": "deployment question (generic)",
+        "kind": "generic",
+        "hits": [
+          "sha-2",
+          "deploy-3",
+          "deploy-0",
+          "deploy-5",
+          "sha-1"
+        ],
+        "recall": 0.5,
+        "ndcg": 0.5296347172140421,
+        "rr": 0.5,
+        "ms": 0.057458
+      },
+      {
+        "query": "storage question (generic)",
+        "kind": "generic",
+        "hits": [
+          "store-2",
+          "store-3"
+        ],
+        "recall": 0.5,
+        "ndcg": 0.6366824387328317,
+        "rr": 1,
+        "ms": 0.028875
+      },
+      {
+        "query": "pipeline question (generic)",
+        "kind": "generic",
+        "hits": [
+          "sha-2",
+          "deploy-4",
+          "sha-1",
+          "err-2",
+          "auth-2"
+        ],
+        "recall": 0,
+        "ndcg": 0,
+        "rr": 0,
+        "ms": 0.031542
+      },
+      {
+        "query": "CVE lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-1",
+          "cve-2",
+          "store-2",
+          "store-3"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 0.027583
+      },
+      {
+        "query": "CVE lookup 2 (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-2",
+          "cve-1"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 0.025708
+      },
+      {
+        "query": "sha lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "sha-1",
+          "sha-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 0.023542
+      },
+      {
+        "query": "function lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "fnc-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 0.023041
+      }
+    ],
+    "hybrid": [
+      {
+        "query": "auth question (generic)",
+        "kind": "generic",
+        "hits": [
+          "auth-5",
+          "auth-3",
+          "auth-1",
+          "auth-4",
+          "auth-0"
+        ],
+        "recall": 0.8333333333333334,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.344792
+      },
+      {
+        "query": "deployment question (generic)",
+        "kind": "generic",
+        "hits": [
+          "deploy-3",
+          "deploy-0",
+          "err-2",
+          "cve-2",
+          "sha-2"
+        ],
+        "recall": 0.3333333333333333,
+        "ndcg": 0.5531464700081437,
+        "rr": 1,
+        "ms": 1.416875
+      },
+      {
+        "query": "storage question (generic)",
+        "kind": "generic",
+        "hits": [
+          "store-3",
+          "store-2",
+          "store-0",
+          "store-1",
+          "deploy-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.186584
+      },
+      {
+        "query": "pipeline question (generic)",
+        "kind": "generic",
+        "hits": [
+          "deploy-4",
+          "deploy-3",
+          "deploy-0",
+          "err-2",
+          "sha-2"
+        ],
+        "recall": 0.5,
+        "ndcg": 0.38685280723454163,
+        "rr": 0.5,
+        "ms": 1.1545
+      },
+      {
+        "query": "CVE lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-1",
+          "cve-2",
+          "sha-2",
+          "deploy-4",
+          "err-2"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.565459
+      },
+      {
+        "query": "CVE lookup 2 (rare)",
+        "kind": "rare",
+        "hits": [
+          "cve-2",
+          "cve-1",
+          "auth-0",
+          "err-2",
+          "fnc-1"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.599917
+      },
+      {
+        "query": "sha lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "sha-1",
+          "sha-2",
+          "cve-1",
+          "err-2",
+          "store-0"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.869166
+      },
+      {
+        "query": "function lookup (rare)",
+        "kind": "rare",
+        "hits": [
+          "fnc-2",
+          "fnc-1",
+          "auth-1",
+          "store-3",
+          "auth-5"
+        ],
+        "recall": 1,
+        "ndcg": 1,
+        "rr": 1,
+        "ms": 1.087
+      }
+    ]
+  },
+  "witness": {
+    "benchmark": "rag-hybrid-sparse-dense",
+    "timestamp": "2026-05-18T00:51:54.255Z",
+    "commit": "cd57e650a4c504dcfd78c3f496056c84b39da1c0",
+    "model": "Xenova/all-MiniLM-L6-v2",
+    "corpus": {
+      "id": "df6593050ffa5da161c66752b77d481c55fc845d60324de3c7d85ba5721dbf6b",
+      "size": 24
+    },
+    "queries": {
+      "id": "058225dd5e546a33b39c06c5d8a3f0e8cf83743e1995288acdce0dadfcb91563",
+      "count": 8
+    },
+    "results": {
+      "dense": {
+        "overall": {
+          "recallAt5": 0.9375,
+          "mrr": 0.9166666666666667,
+          "ndcgAt5": 0.9265707789549604,
+          "meanLatencyMs": 1.47970325
+        },
+        "generic": {
+          "recallAt5": 0.875,
+          "ndcgAt5": 0.8531415579099209
+        },
+        "rare": {
+          "recallAt5": 1,
+          "ndcgAt5": 1
+        }
+      },
+      "sparse": {
+        "overall": {
+          "recallAt5": 0.6458333333333333,
+          "mrr": 0.8125,
+          "ndcgAt5": 0.6881846701525612,
+          "meanLatencyMs": 0.04804150000000001
+        },
+        "generic": {
+          "recallAt5": 0.29166666666666663,
+          "ndcgAt5": 0.3763693403051225
+        },
+        "rare": {
+          "recallAt5": 1,
+          "ndcgAt5": 1
+        }
+      },
+      "hybrid": {
+        "overall": {
+          "recallAt5": 0.8333333333333334,
+          "mrr": 0.9375,
+          "ndcgAt5": 0.8674999096553356,
+          "meanLatencyMs": 1.403036625
+        },
+        "generic": {
+          "recallAt5": 0.6666666666666667,
+          "ndcgAt5": 0.7349998193106713
+        },
+        "rare": {
+          "recallAt5": 1,
+          "ndcgAt5": 1
+        }
+      }
+    },
+    "contentHash": "a932accff225f10d02d148ed83674e24c46c9e21f2b1b318d83aff98bfedb9b4",
+    "signature": "a5e5a78da13b1e41d1ac4a59792e7a7b677d4c4cbb992d0a1198663f5ae48fa12892085921bbeafd26b1aadf98045525919687c791caa92ed98424dd9e928607",
+    "publicKey": "302a300506032b6570032100c0636ade067c6ff8af344cf19427a791ace1a847592d6567c86497e396e39a6e",
+    "signatureAlgorithm": "ed25519"
+  }
+}
