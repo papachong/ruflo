@@ -479,6 +479,55 @@ jobs:
         shell: bash
         run: node scripts/smoke-embeddings-diskann.mjs
 
+  rag-adaptive-router-benchmark:
+    # ADR-121 Phase 16 — Adaptive primitive selection benchmark.
+    # The router examines (corpus duplicate density, query intent
+    # cohesion, Q/A space gap) signals and picks the optimal RAG
+    # primitive automatically. Validated against Phase 14's four
+    # topology winners + a compound-trigger topology.
+    # Pass criterion: 5/5 expected primitive predictions (no
+    # regression on the topology winners). Witness-signed manifest
+    # written + re-verified in an independent process + uploaded
+    # as a CI artifact for public re-verification.
+    name: rag adaptive router benchmark + witness (#2036, ADR-121 Phase 16)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build embeddings
+        run: |
+          cd v3/@claude-flow/embeddings
+          npm install --no-audit --no-fund --legacy-peer-deps
+          npx tsc -p tsconfig.json
+
+      - name: Run adaptive router benchmark (witness-signed)
+        shell: bash
+        run: node scripts/benchmark-rag-adaptive.mjs
+
+      - name: Verify witness manifest (independent process)
+        shell: bash
+        run: |
+          FILE=$(ls -t bench-witness/rag-adaptive-router-*.json | head -1)
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            const { verify } = await import('./v3/@claude-flow/embeddings/dist/witness.js');
+            const m = JSON.parse(fs.readFileSync('$FILE', 'utf8'));
+            if (!verify(m.witness)) { console.error('VERIFY FAILED'); process.exit(1); }
+            console.log('Adaptive router witness verifies OK:', m.witness.contentHash);
+          "
+
+      - name: Upload witness as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-adaptive-router-witness
+          path: bench-witness/rag-adaptive-router-*.json
+
   rag-real-text-benchmark:
     # ADR-121 Phase 15 — Real ONNX embeddings + real text + witness.
     # Drives the 5 individual primitives + the new compound

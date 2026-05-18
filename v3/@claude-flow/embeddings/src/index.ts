@@ -144,6 +144,20 @@ export {
   type AverageEmbeddingsOptions,
 } from './embedding-fusion.js';
 
+// ADR-121 Phase 16 — Adaptive primitive selection (BEYOND SOTA).
+// Pure-function feature extractor + router that examines query/corpus
+// shape and picks the right primitive automatically — saving the
+// cost of run-everything-and-vote while preserving topology-winner
+// behavior from Phase 14.
+export {
+  extractRetrievalFeatures,
+  adaptiveRoute,
+  type RetrievalFeatures,
+  type AdaptiveRouterOptions,
+  type AdaptivePrimitive,
+  type AdaptiveDecision,
+} from './adaptive-router.js';
+
 // ADR-121 Phase 15 — Compound retrieval primitive (BEYOND SOTA).
 // Composes HyDE (per-intent embedding fusion) + MMR (per-intent
 // diversity) + RRF (across-intent rank fusion) into a single

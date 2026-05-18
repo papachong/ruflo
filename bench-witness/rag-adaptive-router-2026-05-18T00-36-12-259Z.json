@@ -1,0 +1,246 @@
+{
+  "results": [
+    {
+      "topology": "easy",
+      "expected": "plain",
+      "actual": "plain",
+      "match": true,
+      "features": {
+        "duplicateDensity": 0,
+        "queryIntentCohesion": 0.9987601579104702,
+        "qaSpaceGap": 0.0008543386957950982,
+        "candidateCountUsed": 5,
+        "variantCount": 3,
+        "hypotheticalCount": 2
+      },
+      "reason": "No signals fired (dup=0.000<=0.85, intentCohesion=0.999>=0.55, qaGap=0.001<=0.35); plain top-k is sufficient.",
+      "signals": {
+        "mmr": false,
+        "rrf": false,
+        "hyde": false
+      }
+    },
+    {
+      "topology": "duplicate-heavy",
+      "expected": "mmr",
+      "actual": "mmr",
+      "match": true,
+      "features": {
+        "duplicateDensity": 0.9996372878725215,
+        "queryIntentCohesion": 0.9995220773816326,
+        "qaSpaceGap": 0.001382170801271454,
+        "candidateCountUsed": 5,
+        "variantCount": 2,
+        "hypotheticalCount": 1
+      },
+      "reason": "MMR signal fired: duplicateDensity=1.000>0.85; corpus has near-duplicate top candidates, diversity rerank wins.",
+      "signals": {
+        "mmr": true,
+        "rrf": false,
+        "hyde": false
+      }
+    },
+    {
+      "topology": "multi-intent",
+      "expected": "rrf",
+      "actual": "rrf",
+      "match": true,
+      "features": {
+        "duplicateDensity": 0.43768811158774096,
+        "queryIntentCohesion": 0,
+        "qaSpaceGap": 1.1102230246251565e-16,
+        "candidateCountUsed": 3,
+        "variantCount": 3,
+        "hypotheticalCount": 1
+      },
+      "reason": "RRF signal fired: queryIntentCohesion=0.000<0.55; reformulations cover distinct intents, rank-fusion preserves boundaries.",
+      "signals": {
+        "mmr": false,
+        "rrf": true,
+        "hyde": false
+      }
+    },
+    {
+      "topology": "q-a-gap",
+      "expected": "hyde",
+      "actual": "hyde",
+      "match": true,
+      "features": {
+        "duplicateDensity": 0,
+        "queryIntentCohesion": 0.9995220773816326,
+        "qaSpaceGap": 1,
+        "candidateCountUsed": 3,
+        "variantCount": 2,
+        "hypotheticalCount": 3
+      },
+      "reason": "HyDE signal fired: qaSpaceGap=1.000>0.35; question and hypothetical answers diverge in vector space, HyDE bridges the gap.",
+      "signals": {
+        "mmr": false,
+        "rrf": false,
+        "hyde": true
+      }
+    },
+    {
+      "topology": "compound-trigger",
+      "expected": "compound",
+      "actual": "compound",
+      "match": true,
+      "features": {
+        "duplicateDensity": 0.9998959048625494,
+        "queryIntentCohesion": 0,
+        "qaSpaceGap": 1,
+        "candidateCountUsed": 3,
+        "variantCount": 3,
+        "hypotheticalCount": 2
+      },
+      "reason": "Multiple signals fired: MMR(dup=1.000>0.85), RRF(intent=0.000<0.55), HyDE(qaGap=1.000>0.35); compound primitive composes them all.",
+      "signals": {
+        "mmr": true,
+        "rrf": true,
+        "hyde": true
+      }
+    }
+  ],
+  "summary": {
+    "totalTopologies": 5,
+    "correctPredictions": 5,
+    "accuracy": 1,
+    "perTopology": [
+      {
+        "topology": "easy",
+        "expected": "plain",
+        "actual": "plain",
+        "match": true,
+        "features": {
+          "duplicateDensity": 0,
+          "queryIntentCohesion": 0.9988,
+          "qaSpaceGap": 0.0009
+        }
+      },
+      {
+        "topology": "duplicate-heavy",
+        "expected": "mmr",
+        "actual": "mmr",
+        "match": true,
+        "features": {
+          "duplicateDensity": 0.9996,
+          "queryIntentCohesion": 0.9995,
+          "qaSpaceGap": 0.0014
+        }
+      },
+      {
+        "topology": "multi-intent",
+        "expected": "rrf",
+        "actual": "rrf",
+        "match": true,
+        "features": {
+          "duplicateDensity": 0.4377,
+          "queryIntentCohesion": 0,
+          "qaSpaceGap": 0
+        }
+      },
+      {
+        "topology": "q-a-gap",
+        "expected": "hyde",
+        "actual": "hyde",
+        "match": true,
+        "features": {
+          "duplicateDensity": 0,
+          "queryIntentCohesion": 0.9995,
+          "qaSpaceGap": 1
+        }
+      },
+      {
+        "topology": "compound-trigger",
+        "expected": "compound",
+        "actual": "compound",
+        "match": true,
+        "features": {
+          "duplicateDensity": 0.9999,
+          "queryIntentCohesion": 0,
+          "qaSpaceGap": 1
+        }
+      }
+    ]
+  },
+  "witness": {
+    "benchmark": "rag-adaptive-router",
+    "timestamp": "2026-05-18T00:36:12.259Z",
+    "commit": "9567c475698e134fc5c478d5847f215b91800126",
+    "model": "algorithmic-test-fixtures-dim16",
+    "corpus": {
+      "id": "d7010b8a927430668fc45dd30807e907f7e61ab97b968db82bab94e736f96906",
+      "size": 5
+    },
+    "queries": {
+      "id": "1b762a5ad33b631f1de4943b5130e92ae0e73279a3f51719ffc8c3413cd616a3",
+      "count": 5
+    },
+    "results": {
+      "totalTopologies": 5,
+      "correctPredictions": 5,
+      "accuracy": 1,
+      "perTopology": [
+        {
+          "topology": "easy",
+          "expected": "plain",
+          "actual": "plain",
+          "match": true,
+          "features": {
+            "duplicateDensity": 0,
+            "queryIntentCohesion": 0.9988,
+            "qaSpaceGap": 0.0009
+          }
+        },
+        {
+          "topology": "duplicate-heavy",
+          "expected": "mmr",
+          "actual": "mmr",
+          "match": true,
+          "features": {
+            "duplicateDensity": 0.9996,
+            "queryIntentCohesion": 0.9995,
+            "qaSpaceGap": 0.0014
+          }
+        },
+        {
+          "topology": "multi-intent",
+          "expected": "rrf",
+          "actual": "rrf",
+          "match": true,
+          "features": {
+            "duplicateDensity": 0.4377,
+            "queryIntentCohesion": 0,
+            "qaSpaceGap": 0
+          }
+        },
+        {
+          "topology": "q-a-gap",
+          "expected": "hyde",
+          "actual": "hyde",
+          "match": true,
+          "features": {
+            "duplicateDensity": 0,
+            "queryIntentCohesion": 0.9995,
+            "qaSpaceGap": 1
+          }
+        },
+        {
+          "topology": "compound-trigger",
+          "expected": "compound",
+          "actual": "compound",
+          "match": true,
+          "features": {
+            "duplicateDensity": 0.9999,
+            "queryIntentCohesion": 0,
+            "qaSpaceGap": 1
+          }
+        }
+      ]
+    },
+    "contentHash": "ddc6d0a4c03de22c6cc508eaa565c955398f967cc2d2b3ecc060dd105801b5dd",
+    "signature": "914252456594e3b8d430635c7d7f66cead1223e394bd59c9beb60c57b6b1dbf1cfe471c613bcdad69a5f3f52cabf5a3ca20345e1ff8c88f4a31e6df2f25e0008",
+    "publicKey": "302a300506032b657003210000eee835bda3ae93df6e7b6ed0ad91e1f26077ff81295fee07bffcf24973f7f1",
+    "signatureAlgorithm": "ed25519"
+  }
+}
