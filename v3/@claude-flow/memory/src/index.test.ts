@@ -9,6 +9,8 @@
 
 import { describe, it, expect } from 'vitest';
 import * as memoryPkg from './index.js';
+import { createHybridService, MemoryService } from './index.js';
+import { HybridBackend } from './hybrid-backend.js';
 
 describe('Phase 1 — canonical public exports', () => {
   it('exports `MemoryService` as the canonical entry point', () => {
@@ -47,5 +49,33 @@ describe('Phase 1 — canonical public exports', () => {
     expect(memoryPkg).toHaveProperty('SQLiteBackend');
     expect(memoryPkg).toHaveProperty('SqlJsBackend');
     expect(memoryPkg).toHaveProperty('HybridBackend');
+  });
+});
+
+describe('Phase 2 — createHybridService returns a real HybridBackend', () => {
+  it('returns a MemoryService whose backend is a HybridBackend instance', async () => {
+    // Trivial embedder for the test — returns a zero vector of the right shape.
+    const embedder = async (_text: string) => new Float32Array(384);
+    const svc = await createHybridService(':memory:', embedder, 384);
+
+    try {
+      expect(svc).toBeInstanceOf(MemoryService);
+      expect(svc.backend).toBeDefined();
+      expect(svc.backend).toBeInstanceOf(HybridBackend);
+    } finally {
+      // initialize is required before shutdown; do the minimal lifecycle.
+      await svc.initialize().catch(() => undefined);
+      await svc.shutdown().catch(() => undefined);
+    }
+  });
+
+  it('initializes and shuts down without error', async () => {
+    const embedder = async (_text: string) => new Float32Array(384);
+    const svc = await createHybridService(':memory:', embedder, 384);
+
+    await svc.initialize();
+    expect(svc.isInitialized()).toBe(true);
+    await svc.shutdown();
+    expect(svc.isInitialized()).toBe(false);
   });
 });
