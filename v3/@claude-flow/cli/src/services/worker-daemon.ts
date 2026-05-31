@@ -132,6 +132,12 @@ export class WorkerDaemon extends EventEmitter {
   // Headless execution support
   private headlessExecutor: HeadlessWorkerExecutor | null = null;
   private headlessAvailable: boolean = false;
+  // #2251 — Promise that resolves once initHeadlessExecutor() has finished
+  // probing `claude --version` and constructed the executor. The constructor
+  // kicks off init fire-and-forget; without awaiting this on the trigger
+  // path, `ruflo daemon trigger -w <worker>` runs before headlessAvailable
+  // is set and falls through to the local stub in ~2ms.
+  private headlessInitPromise: Promise<void> = Promise.resolve();
 
   // Preserve the original constructor config so we can detect explicit overrides
   // during state restoration (R1: constructor config takes priority over stale state)
@@ -202,8 +208,11 @@ export class WorkerDaemon extends EventEmitter {
     // Initialize worker states
     this.initializeWorkerStates();
 
-    // Initialize headless executor (async, non-blocking)
-    this.initHeadlessExecutor().catch((err) => {
+    // Initialize headless executor (async, non-blocking) — capture the
+    // promise so the trigger path (#2251) can await it before checking
+    // `headlessAvailable`. Scheduled fires hit a long-running daemon and
+    // are unaffected; the on-demand `trigger` path was racing this init.
+    this.headlessInitPromise = this.initHeadlessExecutor().catch((err) => {
       this.log('warn', `Headless executor init failed: ${err}`);
     });
   }
@@ -1451,6 +1460,13 @@ export class WorkerDaemon extends EventEmitter {
     if (!workerConfig) {
       throw new Error(`Unknown worker type: ${type}`);
     }
+    // #2251 — wait for headless probe to settle before running. Without
+    // this, on-demand `daemon trigger -w <worker>` races the constructor's
+    // fire-and-forget init and ALWAYS falls through to local mode even
+    // when `claude` is on PATH and scheduled fires of the same worker
+    // use headless correctly. Scheduled fires already wait long enough
+    // (timer + offset) that this is a no-op for them.
+    await this.headlessInitPromise;
     return this.executeWorker(workerConfig);
   }
 

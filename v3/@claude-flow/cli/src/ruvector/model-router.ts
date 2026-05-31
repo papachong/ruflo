@@ -325,9 +325,20 @@ function migratePriors(p: unknown): BucketedPriors {
 // Default Configuration
 // ============================================================================
 
+// #2250 — env override for maxUncertainty so callers can suppress the
+// escalation without recompiling. Parsed once at module load; invalid /
+// out-of-range values fall through to the default below.
+function envMaxUncertainty(): number | undefined {
+  const raw = process.env.CLAUDE_FLOW_MAX_UNCERTAINTY;
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) return undefined;
+  return n;
+}
+
 const DEFAULT_CONFIG: ModelRouterConfig = {
   confidenceThreshold: 0.85,
-  maxUncertainty: 0.15,
+  maxUncertainty: envMaxUncertainty() ?? 0.15,
   enableCircuitBreaker: true,
   circuitBreakerThreshold: 5,
   statePath: '.swarm/model-router-state.json',
@@ -335,6 +346,12 @@ const DEFAULT_CONFIG: ModelRouterConfig = {
   enableCostOptimization: true,
   preferSpeed: true,
 };
+
+// Posterior mean of a Beta(α,β) prior — used by the #2250 escalation guard
+// to detect when the bandit has *learned* the escalation target is worse.
+function priorMean(p: { alpha: number; beta: number }): number {
+  return p.alpha / (p.alpha + p.beta);
+}
 
 // ============================================================================
 // Model Router Implementation
@@ -595,11 +612,38 @@ export class ModelRouter {
     const scoreSpread = bestScore - secondScore;
     const uncertainty = Math.max(0, 1 - scoreSpread - confidence * 0.5);
 
-    // Escalate if uncertainty is too high
+    // Escalate if uncertainty is too high.
+    //
+    // #2250 — `uncertainty` here is structurally ~0.6-0.7 for low-complexity
+    // tasks (formula: `1 - scoreSpread - confidence*0.5`, where `scoreSpread`
+    // is a raw 0-1 difference between bandit-sampled scores that rarely
+    // exceeds 0.1). With `maxUncertainty = 0.15` the gate fires on
+    // ~every trivial route, promoting `sonnet→opus` and `haiku→sonnet`
+    // even when the Thompson sampler has *already* suppressed the higher
+    // tier (e.g. opus `Beta(3.8, 17.2)`, mean ≈ 0.18). The learned
+    // suppression is computed and then discarded one line later.
+    //
+    // Guard: skip the escalation when EITHER (a) the bandit has confidently
+    // learned the escalation target performs WORSE than the selected model,
+    // OR (b) the bandit has a confident, decent posterior on the selected
+    // model — i.e. the Thompson sampler picked this tier on real evidence,
+    // not a coin flip. Cold-start priors (Beta(1,1), α+β=2, mean=0.5) fail
+    // both checks, so unlearned routers still escalate as before.
     let model = bestModel;
     if (uncertainty > this.config.maxUncertainty && bestModel !== 'opus') {
-      // Escalate to more capable model
-      model = bestModel === 'haiku' ? 'sonnet' : 'opus';
+      const escalateTo: ClaudeModel = bestModel === 'haiku' ? 'sonnet' : 'opus';
+      const selectedMean = priorMean(priors[bestModel]);
+      const targetMean = priorMean(priors[escalateTo]);
+      const targetWorse = targetMean < selectedMean - 0.10;
+      // Treat the selected model as trusted once the bandit has accumulated
+      // ~5 effective observations AND its mean is at least 0.45 (neutral-or-
+      // better). Both thresholds chosen to keep cold-start behavior identical
+      // while honoring any non-trivial learning.
+      const selectedSamples = priors[bestModel].alpha + priors[bestModel].beta;
+      const selectedTrusted = selectedSamples >= 5 && selectedMean >= 0.45;
+      if (!targetWorse && !selectedTrusted) {
+        model = escalateTo;
+      }
     }
 
     return { model, confidence, uncertainty };
