@@ -130,16 +130,77 @@ class JsonFileBackend {
 // Resolve memory package path (local dev or npm installed)
 // ============================================================================
 
+/**
+ * Resolve a bundled package file (`<pkg>/<relativeFile>`) by trying, in order:
+ *   1. PROJECT_ROOT/v3/<pkg>/<relativeFile>           (monorepo dev layout)
+ *   2. CWD/node_modules/<pkg>/<relativeFile>          (user's project deps)
+ *   3. node_modules walk-up from PROJECT_ROOT
+ *   4. node_modules walk-up from CWD
+ *   5. Global npm prefix — checks the ruflo / claude-flow / @claude-flow/cli
+ *      bundles, AND the package installed globally on its own
+ *
+ * Returns the resolved absolute path, or null. See issue #2285.
+ */
+async function resolveBundledFile(pkg, relativeFile) {
+  const monorepo = join(PROJECT_ROOT, 'v3', pkg, relativeFile);
+  if (existsSync(monorepo)) return monorepo;
+
+  const cwd = process.env.CLAUDE_FLOW_CWD || process.cwd();
+  const inCwd = join(cwd, 'node_modules', pkg, relativeFile);
+  if (existsSync(inCwd)) return inCwd;
+
+  const walkUp = (start) => {
+    let dir = start;
+    while (dir && dir !== dirname(dir)) {
+      const candidate = join(dir, 'node_modules', pkg, relativeFile);
+      if (existsSync(candidate)) return candidate;
+      dir = dirname(dir);
+    }
+    return null;
+  };
+
+  const fromProject = walkUp(PROJECT_ROOT);
+  if (fromProject) return fromProject;
+
+  const fromCwd = walkUp(cwd);
+  if (fromCwd) return fromCwd;
+
+  // Global npm prefix fallback — handles `npm i -g ruflo` and friends, where
+  // the marketplace clone (PROJECT_ROOT) has no access to the bundled deps.
+  try {
+    const { execSync } = await import('child_process');
+    const npmPrefix = execSync('npm prefix -g', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (npmPrefix) {
+      // Both Unix (<prefix>/lib/node_modules) and Windows (<prefix>/node_modules)
+      const roots = [join(npmPrefix, 'lib', 'node_modules'), join(npmPrefix, 'node_modules')];
+      const wrappers = ['ruflo', 'claude-flow', join('@claude-flow', 'cli')];
+      for (const root of roots) {
+        for (const wrapper of wrappers) {
+          const candidate = join(root, wrapper, 'node_modules', pkg, relativeFile);
+          if (existsSync(candidate)) return candidate;
+        }
+        const direct = join(root, pkg, relativeFile);
+        if (existsSync(direct)) return direct;
+      }
+    }
+  } catch { /* npm not on PATH or no global install */ }
+
+  return null;
+}
+
 async function loadMemoryPackage() {
-  // Strategy 1: Local dev (built dist)
-  const localDist = join(PROJECT_ROOT, 'v3/@claude-flow/memory/dist/index.js');
-  if (existsSync(localDist)) {
+  // Strategy 1-5: locate dist/index.js across dev/installed/global layouts
+  const resolved = await resolveBundledFile('@claude-flow/memory', 'dist/index.js');
+  if (resolved) {
     try {
-      return await import(`file://${localDist}`);
+      return await import(`file://${resolved}`);
     } catch { /* fall through */ }
   }
 
-  // Strategy 2: Use createRequire for CJS-style resolution (handles nested node_modules
+  // Strategy 6: Use createRequire for CJS-style resolution (handles nested node_modules
   // when installed as a transitive dependency via npx ruflo / npx claude-flow)
   try {
     const { createRequire } = await import('module');
@@ -147,23 +208,10 @@ async function loadMemoryPackage() {
     return require('@claude-flow/memory');
   } catch { /* fall through */ }
 
-  // Strategy 3: ESM import (works when @claude-flow/memory is a direct dependency)
+  // Strategy 7: ESM import (works when @claude-flow/memory is a direct dependency)
   try {
     return await import('@claude-flow/memory');
   } catch { /* fall through */ }
-
-  // Strategy 4: Walk up from PROJECT_ROOT looking for @claude-flow/memory in any node_modules
-  let searchDir = PROJECT_ROOT;
-  const { parse } = await import('path');
-  while (searchDir !== parse(searchDir).root) {
-    const candidate = join(searchDir, 'node_modules', '@claude-flow', 'memory', 'dist', 'index.js');
-    if (existsSync(candidate)) {
-      try {
-        return await import(`file://${candidate}`);
-      } catch { /* fall through */ }
-    }
-    searchDir = dirname(searchDir);
-  }
 
   return null;
 }
@@ -223,7 +271,10 @@ async function doImport() {
   await backend.initialize();
 
   const bridgeConfig = {
-    workingDir: PROJECT_ROOT,
+    // Use Claude Code's invocation cwd (the user's project), not PROJECT_ROOT
+    // — PROJECT_ROOT resolves to the plugin clone when this hook runs from
+    // ~/.claude/plugins/marketplaces/ruflo/. See issue #2284.
+    workingDir: process.env.CLAUDE_FLOW_CWD || process.cwd(),
     syncMode: 'on-session-end',
   };
 
@@ -259,8 +310,8 @@ async function doImport() {
     // Bridge to AgentDB: store entries with ONNX vector embeddings for semantic search
     let vectorized = 0;
     try {
-      const cliDistPath = join(PROJECT_ROOT, 'v3/@claude-flow/cli/dist/src/memory/memory-initializer.js');
-      if (existsSync(cliDistPath)) {
+      const cliDistPath = await resolveBundledFile('@claude-flow/cli', 'dist/src/memory/memory-initializer.js');
+      if (cliDistPath) {
         const memInit = await import(`file://${cliDistPath}`);
         await memInit.initializeMemoryDatabase({ force: false, verbose: false });
 
@@ -313,7 +364,8 @@ async function doSync() {
   }
 
   const bridgeConfig = {
-    workingDir: PROJECT_ROOT,
+    // See doImport — must reflect the user's project, not PROJECT_ROOT (#2284)
+    workingDir: process.env.CLAUDE_FLOW_CWD || process.cwd(),
     syncMode: 'on-session-end',
   };
 
@@ -346,8 +398,8 @@ async function doSync() {
 
     // Flush intelligence patterns to disk (SONA + ReasoningBank)
     try {
-      const intPath = join(PROJECT_ROOT, 'v3/@claude-flow/cli/dist/src/memory/intelligence.js');
-      if (existsSync(intPath)) {
+      const intPath = await resolveBundledFile('@claude-flow/cli', 'dist/src/memory/intelligence.js');
+      if (intPath) {
         const intelligence = await import(`file://${intPath}`);
         if (intelligence.flushPatterns) {
           intelligence.flushPatterns();
@@ -391,8 +443,8 @@ async function doStatus() {
     const hasDb = existsSync(dbPath) || existsSync(swarmDbPath);
     console.log(`  AgentDB:        ${hasDb ? '✅ sql.js database exists' : '⏸ Not initialized'}`);
 
-    const intPath = join(PROJECT_ROOT, 'v3/@claude-flow/cli/dist/src/memory/intelligence.js');
-    if (existsSync(intPath)) {
+    const intPath = await resolveBundledFile('@claude-flow/cli', 'dist/src/memory/intelligence.js');
+    if (intPath) {
       const intelligence = await import(`file://${intPath}`);
       const stats = intelligence.getIntelligenceStats?.();
       if (stats) {
@@ -454,8 +506,8 @@ async function doImportAll() {
   // Load memory-initializer for vectorized storage
   let memInit = null;
   try {
-    const cliDistPath = join(PROJECT_ROOT, 'v3/@claude-flow/cli/dist/src/memory/memory-initializer.js');
-    if (existsSync(cliDistPath)) {
+    const cliDistPath = await resolveBundledFile('@claude-flow/cli', 'dist/src/memory/memory-initializer.js');
+    if (cliDistPath) {
       memInit = await import(`file://${cliDistPath}`);
       await memInit.initializeMemoryDatabase({ force: false, verbose: false });
     }
