@@ -234,6 +234,7 @@ const initAction = async (ctx: CommandContext): Promise<CommandResult> => {
   // set still got `~/.claude/CLAUDE.md` modified. Read the real key.
   const noGlobal = ctx.flags['no-global'] === true || ctx.flags['global'] === false;
   const allAgents = ctx.flags['all-agents'] as boolean;
+  const cloudMcp = ctx.flags['cloud-mcp'] as boolean;
   const codexMode = ctx.flags.codex as boolean;
   const dualMode = ctx.flags.dual as boolean;
   const cwd = ctx.cwd;
@@ -278,6 +279,12 @@ const initAction = async (ctx: CommandContext): Promise<CommandResult> => {
     options = { ...MINIMAL_INIT_OPTIONS, targetDir: cwd, force };
   } else if (full) {
     options = { ...FULL_INIT_OPTIONS, targetDir: cwd, force };
+    // #2356: keep auth-gated cloud MCP servers opt-in even under --full. They
+    // require a login, get committed into .mcp.json, and add per-session MCP
+    // tool-definition token cost. --cloud-mcp restores the all-three behavior.
+    if (!cloudMcp) {
+      options.mcp = { ...options.mcp, ruvSwarm: false, flowNexus: false };
+    }
   } else {
     options = { ...DEFAULT_INIT_OPTIONS, targetDir: cwd, force };
   }
@@ -1115,6 +1122,16 @@ export const initCommand: Command = {
     {
       name: 'full',
       description: 'Create full configuration with all components',
+      type: 'boolean',
+      default: false,
+    },
+    {
+      // #2356: under --full, the auth-gated cloud MCP servers (ruv-swarm,
+      // flow-nexus) get written into a committed .mcp.json and add MCP
+      // tool-definition token cost every session. Keep them opt-in even with
+      // --full; pass --cloud-mcp to register them.
+      name: 'cloud-mcp',
+      description: 'Register auth-gated cloud MCP servers (ruv-swarm, flow-nexus) in .mcp.json (only relevant with --full)',
       type: 'boolean',
       default: false,
     },

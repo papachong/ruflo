@@ -182,10 +182,14 @@ function setupAndBoundary(): string {
   return `## Setup
 
 \`\`\`bash
-claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
-npx @claude-flow/cli@latest daemon start
-npx @claude-flow/cli@latest doctor --fix
+claude mcp add claude-flow -- npx -y ruflo@latest mcp start
+npx ruflo@latest doctor --fix
 \`\`\`
+
+> The background \`daemon\` is optional. It runs interval workers that each spawn
+> a headless \`claude\` session, so it consumes tokens continuously. Start it only
+> if you want those sweeps: \`npx ruflo@latest daemon start\` (self-stops after 12h
+> by default; \`--ttl 0\` to disable, \`daemon status --all\` to audit running daemons).
 
 **Agent tool** handles execution (agents, files, code, git). **MCP tools** handle coordination (swarm, memory, hooks). **CLI** is the same via Bash.`;
 }

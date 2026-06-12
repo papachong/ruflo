@@ -11,7 +11,29 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'node:module';
 import { readFileMaybeEncrypted, writeFileRestricted } from '../fs-secure.js';
+
+/**
+ * #2356 — cached, synchronous capability probe for @ruvector/core. `getHNSWStatus`
+ * is sync and is called by `neural status` in a fresh process that never warms
+ * the lazy HNSW singleton, so reporting availability off the warm singleton
+ * alone produced a false "Not loaded — @ruvector/core not available" even when
+ * the package is installed and exposes VectorDb. Resolving the module (without
+ * importing/initializing it) is a faithful, cheap availability signal.
+ */
+let _ruvectorCoreResolvable: boolean | undefined;
+function isRuvectorCoreResolvable(): boolean {
+  if (_ruvectorCoreResolvable !== undefined) return _ruvectorCoreResolvable;
+  try {
+    const req = createRequire(import.meta.url);
+    req.resolve('@ruvector/core');
+    _ruvectorCoreResolvable = true;
+  } catch {
+    _ruvectorCoreResolvable = false;
+  }
+  return _ruvectorCoreResolvable;
+}
 
 /**
  * #1854: previously every site that needed the memory directory hardcoded
@@ -737,8 +759,13 @@ export function getHNSWStatus(): {
     };
   }
 
+  // #2356: `available` now reflects real capability (index already loaded OR
+  // @ruvector/core installed and resolvable), not merely whether the lazy
+  // singleton happens to be warm in this process. `initialized` still reports
+  // whether the in-process index is actually loaded, so callers can tell
+  // "installed but not yet loaded" apart from "loaded".
   return {
-    available: hnswIndex !== null,
+    available: hnswIndex !== null || isRuvectorCoreResolvable(),
     initialized: hnswIndex?.initialized ?? false,
     entryCount: hnswIndex?.entries.size ?? 0,
     dimensions: hnswIndex?.dimensions ?? 384

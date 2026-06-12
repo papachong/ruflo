@@ -249,12 +249,21 @@ describe('Memory Initializer', () => {
   });
 
   describe('HNSW status', () => {
-    it('should report unavailable when not initialized', async () => {
+    // #2356: `getHNSWStatus()` now separates "loaded in this process"
+    // (`initialized`) from "@ruvector/core capability present" (`available`).
+    // Previously `available` tracked the lazy in-process singleton, so a fresh
+    // `neural status` process always reported "Not loaded" even when the
+    // package was installed — a false negative. After clearing the index the
+    // contract is: not initialized, 0 entries, 384-dim; `available` reflects
+    // whether @ruvector/core is resolvable (env-dependent, so not hard-asserted).
+    it('should report not-initialized after the index is cleared', async () => {
       const { getHNSWStatus, clearHNSWIndex } = await import('../src/memory/memory-initializer.js');
       clearHNSWIndex();
       const status = getHNSWStatus();
-      expect(status.available).toBe(false);
+      expect(status.initialized).toBe(false);
+      expect(status.entryCount).toBe(0);
       expect(status.dimensions).toBe(384);
+      expect(typeof status.available).toBe('boolean');
     });
   });
 

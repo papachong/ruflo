@@ -90,6 +90,13 @@ export interface DaemonConfig {
     maxCpuLoad: number;
     minFreeMemoryPercent: number;
   };
+  // #2356 (carry-forward from pacphi/ruflo-machine-ref token-leak findings):
+  // self-terminating lifecycle so a forgotten daemon cannot run for days
+  // dispatching headless `claude --print` sweeps. ttlMs = graceful shutdown
+  // once daemon age exceeds this (0 disables). idleShutdownMs = graceful
+  // shutdown if no worker has run within this window (0 disables).
+  ttlMs: number;
+  idleShutdownMs: number;
   workers: WorkerConfig[];
 }
 
@@ -113,6 +120,30 @@ const DEFAULT_WORKERS: WorkerConfigInternal[] = [
 // Previously 5 min, which caused orphan processes when daemon timeout fired before executor timeout (#1117).
 const DEFAULT_WORKER_TIMEOUT_MS = 16 * 60 * 1000;
 
+// #2356 — Self-terminating lifecycle defaults. A background daemon with no
+// upper bound on its lifetime runs until the box reboots; in the field this
+// leaked tens of thousands of headless `claude --print` sweeps over many days
+// (one observed daemon ran 19 days). A 12h default age cap (matching the
+// pacphi/ruflo-machine-ref kit's proven value) heals a forgotten daemon within
+// half a day; set RUFLO_DAEMON_TTL_SECS=0 (or `--ttl 0`) to opt out. Idle
+// shutdown is opt-in (0 = disabled) since a legitimately quiet daemon is not a leak.
+const DEFAULT_DAEMON_TTL_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_DAEMON_IDLE_SHUTDOWN_MS = 0;
+
+/**
+ * Read a non-negative seconds value from an env var and return it as ms.
+ * Unlike the `parseInt(x) || default` idiom used elsewhere, an explicit `0`
+ * is honored (it disables the corresponding limit) rather than falling back
+ * to the default. Invalid / negative / absent values fall back.
+ */
+function readEnvSecsAsMs(name: string, defaultMs: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return defaultMs;
+  const secs = Number.parseInt(raw, 10);
+  if (!Number.isFinite(secs) || secs < 0) return defaultMs;
+  return secs * 1000;
+}
+
 /**
  * Worker Daemon - Manages background workers with Node.js
  */
@@ -123,6 +154,9 @@ export class WorkerDaemon extends EventEmitter {
   // #1845: separate timer for the MCP-dispatch queue poller. Kept off
   // the per-worker map so stop() clears both kinds without confusion.
   private queuePollTimer?: NodeJS.Timeout;
+  // #2356: separate timer that enforces the daemon's max-age TTL + idle
+  // shutdown. Cleared in stop() alongside the worker/queue timers.
+  private lifecycleTimer?: NodeJS.Timeout;
   private running = false;
   private startedAt?: Date;
   private projectRoot: string;
@@ -187,6 +221,11 @@ export class WorkerDaemon extends EventEmitter {
         maxCpuLoad: config?.resourceThresholds?.maxCpuLoad ?? fileConfig.maxCpuLoad ?? smartMaxCpuLoad,
         minFreeMemoryPercent: config?.resourceThresholds?.minFreeMemoryPercent ?? fileConfig.minFreeMemoryPercent ?? defaultMinFreeMemory,
       },
+      // #2356 — precedence: constructor arg > config.json (daemon.ttlSecs) >
+      // env (RUFLO_DAEMON_TTL_SECS) > built-in default. readEnvSecsAsMs folds
+      // env-or-default and honors an explicit 0 (disable).
+      ttlMs: config?.ttlMs ?? fileConfig.ttlMs ?? readEnvSecsAsMs('RUFLO_DAEMON_TTL_SECS', DEFAULT_DAEMON_TTL_MS),
+      idleShutdownMs: config?.idleShutdownMs ?? fileConfig.idleShutdownMs ?? readEnvSecsAsMs('RUFLO_DAEMON_IDLE_SECS', DEFAULT_DAEMON_IDLE_SHUTDOWN_MS),
       workers: config?.workers ?? DEFAULT_WORKERS,
     };
 
@@ -339,6 +378,8 @@ export class WorkerDaemon extends EventEmitter {
     workerTimeoutMs?: number;
     maxCpuLoad?: number;
     minFreeMemoryPercent?: number;
+    ttlMs?: number;
+    idleShutdownMs?: number;
   } {
     const jsonPath = join(claudeFlowDir, 'config.json');
     const yamlPath = join(claudeFlowDir, 'config.yaml');
@@ -389,12 +430,19 @@ export class WorkerDaemon extends EventEmitter {
       const rawMinMem = cfg['daemon.resourceThresholds.minFreeMemoryPercent'] ?? raw['daemon.resourceThresholds.minFreeMemoryPercent'];
       const rawMaxConcurrent = cfg['daemon.maxConcurrent'] ?? raw['daemon.maxConcurrent'];
       const rawTimeout = cfg['daemon.workerTimeoutMs'] ?? raw['daemon.workerTimeoutMs'];
+      // #2356 — lifecycle limits are configured in SECONDS in config.json
+      // (`daemon.ttlSecs` / `daemon.idleSecs`) for parity with the CLI flag
+      // and env var; stored internally as ms. An explicit 0 disables.
+      const rawTtl = cfg['daemon.ttlSecs'] ?? raw['daemon.ttlSecs'];
+      const rawIdle = cfg['daemon.idleSecs'] ?? raw['daemon.idleSecs'];
       return {
         autoStart: typeof raw['daemon.autoStart'] === 'boolean' ? raw['daemon.autoStart'] : undefined,
         maxConcurrent: (typeof rawMaxConcurrent === 'number' && rawMaxConcurrent > 0) ? rawMaxConcurrent : undefined,
         workerTimeoutMs: (typeof rawTimeout === 'number' && rawTimeout > 0) ? rawTimeout : undefined,
         maxCpuLoad: (typeof rawCpuLoad === 'number' && rawCpuLoad > 0 && rawCpuLoad < 1000) ? rawCpuLoad : undefined,
         minFreeMemoryPercent: (typeof rawMinMem === 'number' && rawMinMem >= 0 && rawMinMem <= 100) ? rawMinMem : undefined,
+        ttlMs: (typeof rawTtl === 'number' && rawTtl >= 0) ? rawTtl * 1000 : undefined,
+        idleShutdownMs: (typeof rawIdle === 'number' && rawIdle >= 0) ? rawIdle * 1000 : undefined,
       };
     } catch {
       return {};
@@ -788,6 +836,10 @@ export class WorkerDaemon extends EventEmitter {
       this.queuePollTimer.unref();
     }
 
+    // #2356: self-terminating lifecycle. Without an upper bound on lifetime a
+    // forgotten daemon keeps dispatching headless worker sweeps for days.
+    this.startLifecycleMonitor();
+
     // Save state
     this.saveState();
 
@@ -872,11 +924,94 @@ export class WorkerDaemon extends EventEmitter {
       this.queuePollTimer = undefined;
     }
 
+    // #2356: stop the TTL/idle lifecycle monitor.
+    if (this.lifecycleTimer) {
+      clearInterval(this.lifecycleTimer);
+      this.lifecycleTimer = undefined;
+    }
+
     this.running = false;
     this.removePidFile();
     this.saveState();
     this.emit('stopped', { stoppedAt: new Date() });
     this.log('info', 'Daemon stopped');
+  }
+
+  /**
+   * #2356 — Self-terminating lifecycle monitor. A daemon with no upper bound
+   * on its lifetime is the documented root cause of multi-day token leaks:
+   * each interval worker spawns a headless `claude --print` sweep, so a daemon
+   * left running for days dispatches tens of thousands of sessions invisibly.
+   * This timer enforces a max age (`ttlMs`) and an optional idle window
+   * (`idleShutdownMs`), shutting the daemon down gracefully when either trips.
+   * Checked once a minute and `unref()`'d so it never keeps the process alive
+   * on its own. A no-op when both limits are disabled (0).
+   */
+  private startLifecycleMonitor(): void {
+    const ttlMs = this.config.ttlMs;
+    const idleMs = this.config.idleShutdownMs;
+    if ((!ttlMs || ttlMs <= 0) && (!idleMs || idleMs <= 0)) {
+      return; // both limits disabled — preserve legacy run-until-stopped behavior
+    }
+
+    const CHECK_INTERVAL_MS = 60_000;
+    this.lifecycleTimer = setInterval(() => {
+      if (!this.running) return;
+      const now = Date.now();
+      const startedMs = this.startedAt?.getTime() ?? now;
+
+      if (ttlMs > 0 && now - startedMs >= ttlMs) {
+        void this.selfShutdown(`max age ${Math.round(ttlMs / 1000)}s reached`);
+        return;
+      }
+      if (idleMs > 0) {
+        const lastActivity = this.lastWorkerActivityMs() ?? startedMs;
+        if (now - lastActivity >= idleMs) {
+          void this.selfShutdown(`idle for ${Math.round(idleMs / 1000)}s (no worker activity)`);
+        }
+      }
+    }, CHECK_INTERVAL_MS);
+    if (typeof this.lifecycleTimer.unref === 'function') {
+      this.lifecycleTimer.unref();
+    }
+
+    const parts: string[] = [];
+    if (ttlMs > 0) parts.push(`ttl=${Math.round(ttlMs / 1000)}s`);
+    if (idleMs > 0) parts.push(`idle=${Math.round(idleMs / 1000)}s`);
+    this.log('info', `Lifecycle monitor active (${parts.join(', ')})`);
+  }
+
+  /**
+   * Most recent worker start/finish time across all workers (epoch ms), or
+   * null if no worker has ever started. Used for idle-shutdown detection.
+   */
+  private lastWorkerActivityMs(): number | null {
+    let latest: number | null = null;
+    for (const state of this.workers.values()) {
+      for (const t of [state.lastRun, state.lastStartedAt]) {
+        if (t) {
+          const ms = t.getTime();
+          if (latest === null || ms > latest) latest = ms;
+        }
+      }
+    }
+    return latest;
+  }
+
+  /**
+   * Graceful self-shutdown triggered by the lifecycle monitor. Mirrors the
+   * signal-handler path (`stop()` then `process.exit(0)`) because the
+   * foreground keep-alive in the daemon command is a *ref'd* `setInterval`
+   * that would otherwise hold the process open after `stop()` clears the
+   * service timers — leaving a zombie that reports stopped but never exits.
+   */
+  private async selfShutdown(reason: string): Promise<void> {
+    this.log('info', `Daemon self-shutdown: ${reason}`);
+    this.emit('self-shutdown', { reason });
+    try {
+      await this.stop();
+    } catch { /* best-effort — we are exiting regardless */ }
+    process.exit(0);
   }
 
   /**

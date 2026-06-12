@@ -485,11 +485,21 @@ const statusCommand: Command = {
             details: `${stats.patternsLearned} patterns stored`,
           },
           {
+            // #2356: distinguish "loaded in this process" from "installed but
+            // not yet loaded" from "not installed". Previously `neural status`
+            // always printed "Not loaded" because it never warms the lazy
+            // singleton — a false negative even when @ruvector/core is present.
             component: 'HNSW Index',
-            status: hnswStatus.available ? output.success('Ready') : output.dim('Not loaded'),
-            details: hnswStatus.available
+            status: hnswStatus.initialized
+              ? output.success('Ready')
+              : hnswStatus.available
+                ? output.info('Available')
+                : output.dim('Not installed'),
+            details: hnswStatus.initialized
               ? `${hnswStatus.entryCount} vectors, ${hnswStatus.dimensions}-dim`
-              : '@ruvector/core not available',
+              : hnswStatus.available
+                ? '@ruvector/core installed (loads on first vector search)'
+                : '@ruvector/core not available',
           },
           {
             component: 'Embedding Model',

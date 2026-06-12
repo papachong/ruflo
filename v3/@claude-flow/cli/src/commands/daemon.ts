@@ -24,6 +24,9 @@ const startCommand: Command = {
     { name: 'sandbox', type: 'string', description: 'Default sandbox mode for headless workers', choices: ['strict', 'permissive', 'disabled'] },
     { name: 'max-cpu-load', type: 'string', description: 'Override maxCpuLoad resource threshold (e.g. 4.0)' },
     { name: 'min-free-memory', type: 'string', description: 'Override minFreeMemoryPercent resource threshold (e.g. 15)' },
+    // #2356: self-terminating lifecycle. Caps how long a forgotten daemon can
+    // keep dispatching headless worker sweeps. Default 12h (or RUFLO_DAEMON_TTL_SECS); 0 = run until stopped.
+    { name: 'ttl', type: 'string', description: 'Max daemon age in seconds before graceful self-shutdown (0 = run until stopped; default 43200 = 12h)' },
     // #1914: workspace root for this daemon. Set automatically when the
     // background launcher forks the foreground child so the daemon process
     // carries its workspace path in argv — `killStaleDaemons` then only
@@ -76,6 +79,18 @@ const startCommand: Command = {
       }
     }
 
+    // #2356: parse --ttl (seconds → ms). Integer-only so 0 (disable) is valid;
+    // INT_RE forbids the decimals NUMERIC_RE allows, since a TTL is whole seconds.
+    const rawTtl = ctx.flags.ttl as string | undefined;
+    const INT_RE = /^\d+$/;
+    if (rawTtl !== undefined) {
+      if (INT_RE.test(rawTtl)) {
+        config.ttlMs = parseInt(rawTtl, 10) * 1000;
+      } else if (!quiet) {
+        output.printWarning(`Ignoring invalid --ttl value: ${sanitize(rawTtl)}`);
+      }
+    }
+
     // Check if background daemon already running (skip if we ARE the daemon process)
     if (!isDaemonProcess) {
       const bgPid = getBackgroundDaemonPid(projectRoot);
@@ -101,6 +116,7 @@ const startCommand: Command = {
         workers: ctx.flags.workers as string | undefined,
         headless: ctx.flags.headless as boolean | undefined,
         sandbox: ctx.flags.sandbox as string | undefined,
+        ttl: rawTtl,
       });
     }
 
@@ -148,6 +164,9 @@ const startCommand: Command = {
           [
             `PID: ${status.pid}`,
             `Started: ${status.startedAt?.toISOString()}`,
+            status.config.ttlMs > 0
+              ? `TTL: ${Math.round(status.config.ttlMs / 3600000)}h (self-shutdown)`
+              : `TTL: off (runs until stopped)`,
             `Workers: ${status.config.workers.filter(w => w.enabled).length} enabled`,
             `Max Concurrent: ${status.config.maxConcurrent}`,
             `Max CPU Load: ${status.config.resourceThresholds.maxCpuLoad}`,
@@ -269,6 +288,20 @@ export function daemonCommandLineBelongsToWorkspace(commandLine: string, workspa
 }
 
 /**
+ * #2356: extract the workspace root from a daemon process command line for the
+ * global `daemon status --all` view. The launcher always appends
+ * `--workspace <root>` as the FINAL argv entry (see startBackgroundDaemon), so
+ * we capture everything after it to end-of-line and strip trailing quotes.
+ * Returns null for pre-#1914 daemons that never stamped a workspace.
+ */
+export function extractWorkspaceFromDaemonLine(commandLine: string): string | null {
+  const m = commandLine.match(/--workspace\s+(.+?)\s*$/u);
+  if (!m) return null;
+  const ws = m[1].replace(/["']+$/u, '').trim();
+  return ws.length > 0 ? ws : null;
+}
+
+/**
  * Start daemon as a detached background process
  */
 interface ForwardedDaemonFlags {
@@ -277,10 +310,11 @@ interface ForwardedDaemonFlags {
   workers?: string;
   headless?: boolean;
   sandbox?: string;
+  ttl?: string;
 }
 
 async function startBackgroundDaemon(projectRoot: string, quiet: boolean, forwarded: ForwardedDaemonFlags = {}): Promise<CommandResult> {
-  const { maxCpuLoad, minFreeMemory, workers, headless, sandbox } = forwarded;
+  const { maxCpuLoad, minFreeMemory, workers, headless, sandbox, ttl } = forwarded;
   // Validate and resolve project root
   const resolvedRoot = resolve(projectRoot);
   validatePath(resolvedRoot, 'Project root');
@@ -354,6 +388,11 @@ async function startBackgroundDaemon(projectRoot: string, quiet: boolean, forwar
   }
   if (minFreeMemory && SPAWN_NUMERIC_RE.test(minFreeMemory)) {
     forkArgs.push('--min-free-memory', minFreeMemory);
+  }
+  // #2356: forward the TTL so the background daemon enforces it too. Integer
+  // seconds only (incl. 0 to disable) — reject anything else before it hits argv.
+  if (typeof ttl === 'string' && /^\d+$/.test(ttl)) {
+    forkArgs.push('--ttl', ttl);
   }
   // #1968: forward worker-selection / sandbox flags. The previous launcher
   // dropped these, so `daemon start --workers map` ran with the default
@@ -655,6 +694,124 @@ function isProcessRunning(pid: number): boolean {
   }
 }
 
+/**
+ * #2356: enumerate every running ruflo daemon across ALL workspaces. Reuses
+ * the same `ps`/`tasklist` scan as killStaleDaemons but, instead of killing,
+ * returns each live daemon's PID + workspace so `daemon status --all` can
+ * surface daemons leaked in other projects. Best-effort: any tooling failure
+ * yields an empty list (matching the kill-stale paths).
+ */
+async function scanRunningDaemons(): Promise<Array<{ pid: number; workspace: string | null }>> {
+  const isWin = process.platform === 'win32';
+  try {
+    const { execFileSync } = await import('child_process');
+    const out = isWin
+      ? execFileSync('tasklist', ['/v', '/fo', 'csv', '/nh'], { encoding: 'utf-8', timeout: 5000 })
+      : execFileSync('ps', ['-eo', 'pid,command'], { encoding: 'utf-8', timeout: 5000 });
+    const lines = out.split(/\r?\n/);
+    const found: Array<{ pid: number; workspace: string | null }> = [];
+
+    for (const line of lines) {
+      if (!line.includes('daemon start --foreground')) continue;
+      if (!line.includes('claude-flow') && !line.includes('@claude-flow/cli')) continue;
+
+      let pid: number;
+      let cmd: string;
+      if (isWin) {
+        // tasklist /fo csv: quoted fields; PID is field[1], Window Title is last.
+        const fields = line.split(/","/).map(f => f.replace(/^"|"$/g, ''));
+        pid = parseInt(fields[1] ?? '', 10);
+        cmd = fields[fields.length - 1] ?? line;
+      } else {
+        pid = parseInt(line.trim().split(/\s+/)[0], 10);
+        cmd = line;
+      }
+      if (Number.isNaN(pid) || !isProcessRunning(pid)) continue;
+      found.push({ pid, workspace: extractWorkspaceFromDaemonLine(cmd) });
+    }
+    return found;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * #2356: render the global `daemon status --all` view. For each running daemon
+ * it reads that workspace's daemon-state.json to show age + configured TTL,
+ * and flags any daemon that has outlived its TTL (or 12h when TTL is unknown)
+ * as stale — the visibility that was missing when leaked daemons ran for days.
+ */
+async function renderAllDaemonsStatus(): Promise<CommandResult> {
+  const daemons = await scanRunningDaemons();
+  output.writeln();
+
+  if (daemons.length === 0) {
+    output.printBox(
+      'No ruflo daemons are running in any workspace.',
+      'RuFlo Daemons (all workspaces)'
+    );
+    return { success: true, data: { daemons: [] } };
+  }
+
+  const now = Date.now();
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+  let staleCount = 0;
+
+  const rows = daemons.map(d => {
+    let startedAt: Date | undefined;
+    let ttlMs: number | undefined;
+    if (d.workspace) {
+      try {
+        const statePath = join(d.workspace, '.claude-flow', 'daemon-state.json');
+        if (fs.existsSync(statePath)) {
+          const st = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+          if (st?.startedAt) startedAt = new Date(st.startedAt);
+          if (typeof st?.config?.ttlMs === 'number') ttlMs = st.config.ttlMs;
+        }
+      } catch { /* unreadable/partial state — show what we have */ }
+    }
+
+    const ageMs = startedAt ? now - startedAt.getTime() : undefined;
+    const overTtl = ttlMs !== undefined && ttlMs > 0 && ageMs !== undefined && ageMs > ttlMs;
+    const overTwelveH = ageMs !== undefined && ageMs > TWELVE_HOURS_MS;
+    const isStale = overTtl || overTwelveH;
+    if (isStale) staleCount++;
+
+    const ageText = ageMs !== undefined ? formatTimeAgo(startedAt as Date).replace(' ago', '') : '?';
+    const ttlText = ttlMs !== undefined
+      ? (ttlMs > 0 ? `${Math.round(ttlMs / 3600000)}h` : 'off')
+      : '?';
+
+    return {
+      pid: isStale ? output.warning(String(d.pid)) : String(d.pid),
+      workspace: d.workspace ?? output.dim('(unknown)'),
+      age: isStale ? output.warning(ageText) : ageText,
+      ttl: ttlText === 'off' ? output.dim('off') : ttlText,
+    };
+  });
+
+  output.printTable({
+    columns: [
+      { key: 'pid', header: 'PID', width: 8 },
+      { key: 'age', header: 'Age', width: 8 },
+      { key: 'ttl', header: 'TTL', width: 6 },
+      { key: 'workspace', header: 'Workspace', width: 50 },
+    ],
+    data: rows,
+  });
+
+  output.writeln();
+  if (staleCount > 0) {
+    output.printWarning(
+      `${staleCount} daemon(s) have outlived their TTL (or have run >12h). Stop one with: cd <workspace> && ruflo daemon stop`
+    );
+  } else {
+    output.printInfo(`${daemons.length} daemon(s) running, all within their TTL.`);
+  }
+
+  return { success: true, data: { daemons: rows.length } };
+}
+
 // Status subcommand
 const statusCommand: Command = {
   name: 'status',
@@ -662,15 +819,24 @@ const statusCommand: Command = {
   options: [
     { name: 'verbose', short: 'v', type: 'boolean', description: 'Show detailed worker statistics' },
     { name: 'show-modes', type: 'boolean', description: 'Show worker execution modes (local/headless) and sandbox settings' },
+    // #2356: the default status reads only the CURRENT workspace, so a daemon
+    // leaked in another project is invisible. --all scans every running ruflo
+    // daemon across all workspaces (the global view that surfaces leaks).
+    { name: 'all', short: 'a', type: 'boolean', description: 'List ruflo daemons across ALL workspaces (global view — surfaces leaked daemons)' },
   ],
   examples: [
     { command: 'claude-flow daemon status', description: 'Show daemon status' },
     { command: 'claude-flow daemon status -v', description: 'Show detailed status' },
     { command: 'claude-flow daemon status --show-modes', description: 'Show worker execution modes' },
+    { command: 'claude-flow daemon status --all', description: 'List daemons across all workspaces' },
   ],
   action: async (ctx: CommandContext): Promise<CommandResult> => {
     const verbose = ctx.flags.verbose as boolean;
     const showModes = ctx.flags['show-modes'] as boolean;
+    // #2356: global view across every workspace, not just cwd.
+    if (ctx.flags.all as boolean) {
+      return renderAllDaemonsStatus();
+    }
     const projectRoot = process.cwd();
 
     try {
@@ -696,6 +862,9 @@ const statusCommand: Command = {
           `Status: ${statusIcon} ${statusText}${mode}`,
           `PID: ${displayPid}`,
           status.startedAt ? `Started: ${status.startedAt.toISOString()}` : '',
+          status.config.ttlMs > 0
+            ? `TTL: ${Math.round(status.config.ttlMs / 3600000)}h (self-shutdown)`
+            : `TTL: ${output.dim('off (runs until stopped)')}`,
           `Workers Enabled: ${status.config.workers.filter(w => w.enabled).length}`,
           `Max Concurrent: ${status.config.maxConcurrent}`,
           `Max CPU Load: ${status.config.resourceThresholds.maxCpuLoad}`,
