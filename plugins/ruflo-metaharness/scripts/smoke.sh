@@ -191,6 +191,28 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17u. .harness/manifest.json + README documents witness gap (iter 32)"
+F="$ROOT/../../.harness/manifest.json"
+README="$ROOT/../../.harness/README.md"
+miss=""
+[[ -f "$F" ]] || miss="$miss missing-manifest"
+node -e "JSON.parse(require('fs').readFileSync('$F','utf-8'))" 2>/dev/null || miss="$miss invalid-json"
+# Manifest must list both security-critical files
+node -e "
+const m = JSON.parse(require('fs').readFileSync('$F','utf-8'));
+const files = m.files || {};
+if (!files['.harness/mcp-policy.json']) { console.error('no policy fingerprint'); process.exit(1); }
+if (!files['.claude/settings.json']) { console.error('no settings fingerprint'); process.exit(1); }
+// Sha256 hashes are 64 hex chars
+for (const [k, v] of Object.entries(files)) {
+  if (!/^[0-9a-f]{64}\$/.test(v)) { console.error('bad sha256 for', k); process.exit(1); }
+}
+" 2>/dev/null || miss="$miss manifest-shape-invalid"
+[[ -f "$README" ]] || miss="$miss missing-readme"
+grep -q "witness-signing-key\|witness signing\|WITNESS_SIGNING_KEY" "$README" 2>/dev/null || miss="$miss no-witness-doc"
+grep -q "ADR-150" "$README" 2>/dev/null || miss="$miss no-adr-anchor"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17t. .harness/mcp-policy.json present + default-deny (iter 30 — closes no-policy HIGH)"
 F="$ROOT/../../.harness/mcp-policy.json"
 miss=""
