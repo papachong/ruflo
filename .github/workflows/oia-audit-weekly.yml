@@ -73,8 +73,13 @@ jobs:
       # fastpath made it cheap (~1.4s). Now every Sunday's run diffs
       # against the most recent prior weekly artifact and surfaces the
       # structural distance + alert.
+      # iter 70 — `if: always()` so drift detection fires EVEN when the
+      # audit step exits non-zero (HIGH alert). The pre-iter-70 default
+      # conditional skipped drift exactly when it was most valuable:
+      # the weeks where something was breaking.
       - name: Download prior week's audit artifact (if any)
         id: prior-artifact
+        if: always()
         continue-on-error: true
         run: |
           set +e
@@ -102,7 +107,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Compute structural drift vs prior week (iter 69)
-        if: steps.prior-artifact.outputs.has_prior == 'true'
+        # iter 70 — always() AND has-prior: fires on the failure path too
+        if: always() && steps.prior-artifact.outputs.has_prior == 'true'
         run: |
           set -e
           # iter-67 fastest path: --baseline-file skips audit-list + memory roundtrip
@@ -129,7 +135,9 @@ jobs:
           echo "Alert status: \`$ALERT\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload drift trend artifact
-        if: steps.prior-artifact.outputs.has_prior == 'true'
+        # iter 70 — same always() pattern; the trend artifact is most
+        # useful for forensics when the workflow has failed.
+        if: always() && steps.prior-artifact.outputs.has_prior == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: drift-trend-${{ github.run_id }}

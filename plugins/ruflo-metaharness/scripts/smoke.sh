@@ -191,6 +191,17 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z33. weekly cron drift detection fires even on audit failure (iter 70)"
+miss=""
+F="$ROOT/../../.github/workflows/oia-audit-weekly.yml"
+# All 3 drift steps now use always() so audit-step exit-1 doesn't skip them
+grep -q "if: always() && steps.prior-artifact.outputs.has_prior == 'true'" "$F" 2>/dev/null || miss="$miss no-conditional-always"
+# Download step also has if: always() (line AFTER id: prior-artifact)
+grep -A1 "id: prior-artifact" "$F" 2>/dev/null | grep -q "if: always()" || miss="$miss no-download-always"
+# Comment explains the rationale
+grep -q "skipped drift exactly when it was most valuable" "$F" 2>/dev/null || miss="$miss no-rationale-comment"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z32. weekly cron computes drift vs prior artifact (iter 69)"
 miss=""
 F="$ROOT/../../.github/workflows/oia-audit-weekly.yml"
