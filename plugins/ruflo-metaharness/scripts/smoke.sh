@@ -191,6 +191,29 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z66. SKILL.md frontmatter name matches directory name (iter 103)"
+miss=""
+# Skills are auto-discovered by Claude Code via the .claude/skills
+# pattern: each directory under skills/ is a skill, with its NAME taken
+# from the directory. The SKILL.md's frontmatter `name:` field must
+# match, otherwise tooling that maps dir→id fails silently:
+#   plugins/ruflo-metaharness/skills/harness-foo/SKILL.md
+#                                     └── must have `name: harness-foo`
+SKILLS_DIR="$ROOT/skills"
+COUNT=0
+for d in "$SKILLS_DIR"/*/; do
+  COUNT=$((COUNT + 1))
+  base=$(basename "$d")
+  fm_name=$(grep "^name:" "$d/SKILL.md" 2>/dev/null | head -1 | awk '{print $2}')
+  if [[ "$fm_name" != "$base" ]]; then
+    miss="$miss ${base}-name-mismatch:${fm_name}"
+  fi
+done
+# Lock floor at ≥6 (current set is 8; if it drops below 6, something
+# was mass-deleted)
+[[ "$COUNT" -ge 6 ]] || miss="$miss skill-count-too-low:$COUNT"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z65. orphaned scripts detector — every .mjs is referenced (iter 102)"
 miss=""
 # Reverse direction of iter-89/90/91. Each script in scripts/ should be
