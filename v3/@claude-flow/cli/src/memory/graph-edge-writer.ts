@@ -79,9 +79,17 @@ export async function getBridgeDb(customDbPath?: string, opts?: { createIfMissin
     // module, so platform-specific binaries are required). If unavailable,
     // return null and let callers degrade gracefully — same posture as the
     // prior sql.js version when sql.js failed to load.
+    //
+    // The module name is hidden behind a variable so the TypeScript compiler
+    // does not statically resolve and require the `better-sqlite3` types at
+    // build time — they would only be installed via optionalDependencies,
+    // which CI doesn't always install. This is the standard pattern for
+    // runtime-only optional native deps. The actual presence is gated by
+    // the try/catch below.
     let BetterSqlite3: any;
     try {
-      BetterSqlite3 = (await import('better-sqlite3')).default;
+      const mod: string = 'better-sqlite3';
+      BetterSqlite3 = (await import(mod)).default;
     } catch {
       return null;
     }

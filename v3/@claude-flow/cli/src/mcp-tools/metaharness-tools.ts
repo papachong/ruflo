@@ -443,7 +443,7 @@ export const metaharnessTools: MCPTool[] = [
   },
   {
     name: 'metaharness_bench',
-    description: 'ADR-153 supporting verb — create or verify bench suites used by metaharness_evolve --bench. Bench suites are JSON files of {input, expectedOutput, weight} tasks; scoring against a fixed corpus decouples evolution from flaky/slow/undersized `npm test`. Use --op create to scaffold from a repo, --op verify (cheap, ~5s) to gate suite changes in CI. Skipping bench suites is wrong when iterating on the same harness across commits because per-run noise drowns out champion-fitness deltas; bench gives you a stable baseline. ' + MCP_SUCCESS_SEMANTIC,
+    description: 'ADR-153 supporting verb — create or verify bench suites used by metaharness_evolve --bench. Bench suites are JSON files of {input, expectedOutput, weight} tasks; scoring against a fixed corpus decouples evolution from flaky/slow/undersized `npm test`. Use when iterating on the same harness across commits and `npm test` is too noisy/slow to drive evolution — use --op create to scaffold from a repo, --op verify (cheap, ~5s) to gate suite changes in CI. Native test runners are wrong here because per-run noise drowns out champion-fitness deltas; bench gives you a stable baseline. ' + MCP_SUCCESS_SEMANTIC,
     category: 'metaharness',
     inputSchema: {
       type: 'object',

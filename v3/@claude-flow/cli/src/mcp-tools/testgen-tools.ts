@@ -124,7 +124,7 @@ export const testgenTools: MCPTool[] = [
   {
     name: 'testgen_tdd_repair',
     description:
-      'ADR-175-inspired Test-Driven Repair. Given a failing test, spawn a bounded headless `claude -p` (Read/Edit/Bash only, --max-budget-usd capped) ' +
+      'ADR-175-inspired Test-Driven Repair. Use when you have a failing test and want a verified, bounded-cost fix. Spawns a bounded headless `claude -p` (Read/Edit/Bash only, --max-budget-usd capped) ' +
       'that makes the test pass without modifying it. The test\'s exit code IS the fitness function — no LLM-as-judge. ' +
       'Use when you have a failing test and want a verified fix. Skipping this and asking an agent to "fix the bug" is wrong because (a) you lose the bounded-cost guarantee, ' +
       '(b) you lose the strict no-test-modification constraint, (c) you lose the verify-on-finish step. ' +

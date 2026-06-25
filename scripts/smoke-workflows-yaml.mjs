@@ -20,7 +20,11 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import yaml from 'js-yaml';
+// js-yaml's package exports map removed the synthetic default in newer
+// versions when loaded as ESM, so `import yaml from 'js-yaml'` throws
+// `SyntaxError: does not provide an export named 'default'`. Use the
+// namespace import — works in every js-yaml release since 4.x.
+import * as yaml from 'js-yaml';
 
 const WORKFLOWS_DIR = '.github/workflows';
 

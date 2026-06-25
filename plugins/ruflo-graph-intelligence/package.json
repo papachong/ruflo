@@ -23,6 +23,9 @@
     "sublinear-time-solver": "^1.7.0",
     "zod": "^3.22.4"
   },
+  "overrides": {
+    "ws": ">=8.21.0"
+  },
   "peerDependencies": {
     "@claude-flow/cli": ">=3.5.0"
   },
